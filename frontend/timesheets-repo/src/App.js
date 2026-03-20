@@ -1,7 +1,17 @@
 import logo from './logo.svg';
 import './App.css';
+import react from 'react';
+import { useEffect } from 'react';
 
 function App() {
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/test/")
+      .then(res => res.json())
+      .then(data => console.log(data))
+      .catch(err => console.log("Not connected:", err))
+  }, []);
+
   return (
     <div className="App">
       <header className="App-header">
@@ -21,5 +31,7 @@ function App() {
     </div>
   );
 }
+
+
 
 export default App;
