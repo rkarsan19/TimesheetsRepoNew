@@ -1,0 +1,27 @@
+[
+  {"model": "api.user", "pk": 1, "fields": {"name": "Reece Admin", "email": "reece@company.com", "role": "ADMIN", "password": "pbkdf2_sha256$admin123", "isActive": true}},
+  {"model": "api.user", "pk": 2, "fields": {"name": "Jason Manager", "email": "jason@company.com", "role": "LINE_MANAGER", "password": "pbkdf2_sha256$manager123", "isActive": true}},
+  {"model": "api.user", "pk": 3, "fields": {"name": "Eniola Consultant", "email": "eniola@company.com", "role": "CONSULTANT", "password": "pbkdf2_sha256$consultant123", "isActive": true}},
+  {"model": "api.user", "pk": 4, "fields": {"name": "Alpay Finance", "email": "alpay@company.com", "role": "FINANCE", "password": "pbkdf2_sha256$finance123", "isActive": true}},
+  {"model": "api.user", "pk": 5, "fields": {"name": "Sumaya Consultant", "email": "sumaya@company.com", "role": "CONSULTANT", "password": "pbkdf2_sha256$consultant456", "isActive": true}},
+
+  {"model": "api.administrator", "pk": 1, "fields": {"user": 1}},
+
+  {"model": "api.linemanager", "pk": 1, "fields": {"user": 2, "department": "Software Engineering"}},
+
+  {"model": "api.consultant", "pk": 1, "fields": {"user": 3, "skills": "Python, Django, React", "payRate": "35.00"}},
+  {"model": "api.consultant", "pk": 2, "fields": {"user": 5, "skills": "Java, Spring Boot", "payRate": "40.00"}},
+
+  {"model": "api.timesheet", "pk": 1, "fields": {"consultant": 1, "lineManager": 1, "submitDate": "2024-01-15", "status": "APPROVED", "comments": "All good"}},
+  {"model": "api.timesheet", "pk": 2, "fields": {"consultant": 2, "lineManager": 1, "submitDate": "2024-01-15", "status": "SUBMITTED", "comments": ""}},
+  {"model": "api.timesheet", "pk": 3, "fields": {"consultant": 1, "lineManager": 1, "submitDate": "2024-01-22", "status": "DRAFT", "comments": ""}},
+
+  {"model": "api.timesheetentry", "pk": 1, "fields": {"timesheet": 1, "date": "2024-01-08", "hoursWorked": "8.00", "description": "Frontend development"}},
+  {"model": "api.timesheetentry", "pk": 2, "fields": {"timesheet": 1, "date": "2024-01-09", "hoursWorked": "7.50", "description": "API integration"}},
+  {"model": "api.timesheetentry", "pk": 3, "fields": {"timesheet": 1, "date": "2024-01-10", "hoursWorked": "8.00", "description": "Bug fixes"}},
+  {"model": "api.timesheetentry", "pk": 4, "fields": {"timesheet": 2, "date": "2024-01-08", "hoursWorked": "8.00", "description": "Backend development"}},
+  {"model": "api.timesheetentry", "pk": 5, "fields": {"timesheet": 2, "date": "2024-01-09", "hoursWorked": "6.00", "description": "Database setup"}},
+
+  {"model": "api.payslip", "pk": 1, "fields": {"consultant": 1, "timesheet": 1, "totalHours": "23.50", "payRate": "35.00", "totalPay": "822.50", "generatedDate": "2024-01-16"}},
+  {"model": "api.payslip", "pk": 2, "fields": {"consultant": 2, "timesheet": 2, "totalHours": "14.00", "payRate": "40.00", "totalPay": "560.00", "generatedDate": "2024-01-16"}}
+]

@@ -1,0 +1,16 @@
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+.env
+
+# React
+node_modules/
+frontend/timesheets-repo/node_modules/
+
+# VS Code
+.vscode/
+
+.env
+backend/.env
