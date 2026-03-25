@@ -7,6 +7,10 @@ urlpatterns = [
     # Users
     path('users/', views.getUsers),
     path('users/<str:pk>/', views.getUser),
+    path('users/<int:pk>/update', views.updateUser),
+
+
+
 
     # Login
     path('login/', views.login),
