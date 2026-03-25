@@ -22,6 +22,10 @@ def getUser(request, pk):
     serializer = UserSerializer(user, many=False)
     return Response(serializer.data)
 
+@api_view(['GET', 'PUT'])
+def updateUser():
+    pass
+
 # ── LOGIN ─────────────────────────────────────────────
 @api_view(['POST'])
 def login(request):
