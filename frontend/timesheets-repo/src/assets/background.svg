@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 220" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1a6b6b;stop-opacity:1" />
+      <stop offset="55%" style="stop-color:#0d9e9e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00c8b4;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="wave1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.07" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.02" />
+    </linearGradient>
+    <linearGradient id="wave2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.12" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.03" />
+    </linearGradient>
+  </defs>
+  <!-- Base gradient -->
+  <rect width="1200" height="220" fill="url(#bg)" />
+  <!-- Large swoosh 1 -->
+  <path d="M-100 180 Q300 20 700 140 Q1000 220 1300 60 L1300 240 L-100 240 Z" fill="url(#wave1)" />
+  <!-- Large swoosh 2 -->
+  <path d="M-100 220 Q200 80 550 180 Q850 260 1300 100 L1300 240 L-100 240 Z" fill="url(#wave2)" />
+  <!-- Subtle leaf shapes -->
+  <ellipse cx="900" cy="60" rx="200" ry="90" fill="#ffffff" fill-opacity="0.05" transform="rotate(-20 900 60)" />
+  <ellipse cx="1050" cy="110" rx="180" ry="75" fill="#ffffff" fill-opacity="0.06" transform="rotate(-15 1050 110)" />
+</svg>

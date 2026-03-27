@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d7a7a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a5f5f;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="900" fill="url(#bg)" />
+  <!-- Wave 1 - largest, back -->
+  <path d="M-50 900 Q50 500 200 400 Q350 300 300 100 Q350 50 600 200 L600 900 Z"
+    fill="#ffffff" fill-opacity="0.07" />
+  <!-- Wave 2 -->
+  <path d="M-50 900 Q100 600 250 520 Q420 420 380 200 Q430 100 600 250 L600 900 Z"
+    fill="#ffffff" fill-opacity="0.08" />
+  <!-- Wave 3 -->
+  <path d="M-50 900 Q150 700 300 620 Q480 520 450 320 Q490 200 600 320 L600 900 Z"
+    fill="#ffffff" fill-opacity="0.10" />
+  <!-- Wave 4 - smallest, front -->
+  <path d="M-50 900 Q200 780 350 700 Q520 610 500 430 Q540 310 600 400 L600 900 Z"
+    fill="#ffffff" fill-opacity="0.08" />
+</svg>
