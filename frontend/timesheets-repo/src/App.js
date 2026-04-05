@@ -1,11 +1,16 @@
-import './App.css';
-import Login from './components/Login';
+import { useState } from "react";
+import "./App.css";
+import CalculatePay from "./components/CalculatePay";
+import Login from "./components/Login";
 
 function App() {
-  return  <Login />
-    
- 
-  
+  const [activePage, setActivePage] = useState("login");
+
+  if (activePage === "calculate-pay") {
+    return <CalculatePay onBack={() => setActivePage("login")} />;
+  }
+
+  return <Login onOpenCalculatePay={() => setActivePage("calculate-pay")} />;
 }
 
 export default App;

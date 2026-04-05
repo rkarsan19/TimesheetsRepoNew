@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faClock, faUser, faLock } from "@fortawesome/free-solid-svg-icons";
 import loginBg from "../assets/login-bg.svg";
 
-const Login = () => {
+const Login = ({ onOpenCalculatePay }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -124,6 +124,20 @@ const Login = () => {
               >
                 Forgot Password?
               </button>
+
+              {onOpenCalculatePay && (
+                <button
+                  type="button"
+                  className="btn w-100 mt-3 fw-semibold"
+                  style={{
+                    backgroundColor: "#ffffff",
+                    color: "#0d7a7a",
+                  }}
+                  onClick={onOpenCalculatePay}
+                >
+                  Open Finance Calculate Pay
+                </button>
+              )}
             </form>
           </div>
 
