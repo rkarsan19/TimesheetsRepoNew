@@ -3,14 +3,29 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faClock, faUser, faLock } from "@fortawesome/free-solid-svg-icons";
 import loginBg from "../assets/login-bg.svg";
 
-const Login = ({ onOpenCalculatePay }) => {
+const Login = ({ onLogin }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: wire up to Django auth endpoint
-    console.log("Login attempted:", username);
+    setError("");
+
+    fetch("http://localhost:8000/api/login/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },    
+      body: JSON.stringify({ email: username, password: password }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setError(data.error);
+        } else {
+          onLogin(data);
+        }
+      })
+      .catch(() => setError("Could not connect to server"));
   };
 
   return (
@@ -108,6 +123,15 @@ const Login = ({ onOpenCalculatePay }) => {
                 />
               </div>
 
+              {error && (
+                <div
+                  className="mb-3 px-3 py-2 rounded-3 text-white"
+                  style={{ backgroundColor: "rgba(255,255,255,0.2)", fontSize: "0.875rem" }}
+                >
+                 ❌ {error}
+                </div>
+              )}
+
               {/* Submit button */}
               <button
                 type="submit"
@@ -125,19 +149,8 @@ const Login = ({ onOpenCalculatePay }) => {
                 Forgot Password?
               </button>
 
-              {onOpenCalculatePay && (
-                <button
-                  type="button"
-                  className="btn w-100 mt-3 fw-semibold"
-                  style={{
-                    backgroundColor: "#ffffff",
-                    color: "#0d7a7a",
-                  }}
-                  onClick={onOpenCalculatePay}
-                >
-                  Open Finance Calculate Pay
-                </button>
-              )}
+      
+
             </form>
           </div>
 
