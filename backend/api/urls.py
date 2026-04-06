@@ -10,7 +10,9 @@ urlpatterns = [
     path('users/<int:pk>/update', views.updateUser),
     path('consultants/<str:pk>/', views.getConsultant),
 
-
+    # Admin actions
+    path('users/<str:pk>/deactivate/', views.deactivateUser),
+    path('users/<str:pk>/reset-password/', views.resetPassword),
 
     # Login
     path('login/', views.login),

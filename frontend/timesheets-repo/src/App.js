@@ -4,13 +4,17 @@ import Login from './components/Login';
 import CalculatePay from "./components/CalculatePay";
 import TimesheetList from "./components/ViewTimesheetList";
 import AdminDashboard from './components/AdminDashboard';
+import Timesheet from "./components/Timesheet";
+import ConsultantDashboard from "./components/ConsultantDashboard";
 
 function App() {
-
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
     return storedUser ? JSON.parse(storedUser) : null;
   });
+
+  //return <ConsultantDashboard consultantId={1} />;
+  //view consultant dashboard
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -29,7 +33,6 @@ function App() {
 
   // return <TimesheetList consultantId={1}/>
   // To view my pages uncomment the previous line and comment all other lines in the function. Aqib
-
   //If logged in as ADMIN, show admin dashboard
   if (user.role === 'ADMIN') {
     return <AdminDashboard user={user} onLogout={handleLogout} />;
