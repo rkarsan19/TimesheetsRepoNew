@@ -1,0 +1,360 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f0f4f4;
+    color: #1a1a1a;
+}
+
+/* Timesheet */
+
+.timesheetlist-hero {
+    background: url('../assets/background.svg') center center / cover no-repeat;
+    padding: 2.5rem 3rem;
+    position: relative;
+    overflow: hidden;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.timesheetlist-hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #ffffff;
+    position: relative;
+    z-index: 1;
+}
+
+.timesheetlist-hero .hero-stats {
+    display: flex;
+    gap: 2rem;
+    margin-top: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.timesheetlist-hero .hero-stats span {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* User info top right */
+.timesheetlist-hero .hero-user {
+    position: absolute;
+    top: 1.5rem;
+    right: 2rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    z-index: 1;
+}
+
+.timesheetlist-hero .hero-user .avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #2a9d8f;
+    font-size: 0.85rem;
+}
+
+/* Main content area */
+.timesheetlist-content {
+    padding: 2rem 3rem;
+}
+
+.timesheetlist-btn-clear {
+    padding: 0.6rem 1.25rem;
+    background: transparent;
+    color: #333;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+/* Table card */
+.timesheetlist-table-card {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+    padding: 1.5rem;
+    overflow-x: auto;
+}
+
+.timesheetlist-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.timesheetlist-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    color: #444;
+    font-weight: 600;
+    border-bottom: 1.5px solid #eee;
+}
+
+.timesheetlist-table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #f2f2f2;
+    color: #333;
+}
+
+.timesheetlist-table tr:last-child td {
+    border-bottom: none;
+}
+
+.timesheetlist-table tr:hover td {
+    background: #f8fdfc;
+}
+
+/* Status icons */
+.status-icon {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-approved {
+    background: #d4f5ee;
+    color: #1a7a6a;
+}
+
+.status-submitted {
+    background: #ddeeff;
+    color: #1a4a7a;
+}
+
+.status-rejected {
+    background: #ffe0e0;
+    color: #7a1a1a;
+}
+
+.status-draft {
+    background: #f0f0f0;
+    color: #555;
+}
+
+/* AddEntry */
+
+.addentry-wrapper {
+    max-width: 520px;
+    margin: 2rem auto;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.addentry-header {
+    background: linear-gradient(135deg, #3dbcb0 0%, #2a9d8f 100%);
+    padding: 1.75rem 2rem;
+}
+
+.addentry-header h2 {
+    color: #ffffff;
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.addentry-header p {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.85rem;
+}
+
+.addentry-form {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.addentry-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.addentry-field label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.addentry-field input,
+.addentry-field textarea {
+    padding: 0.7rem 0.9rem;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1a1a1a;
+    background: #fafafa;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+    font-family: inherit;
+}
+
+.addentry-field input:focus,
+.addentry-field textarea:focus {
+    border-color: #2a9d8f;
+    background: #ffffff;
+}
+
+.addentry-field textarea {
+    resize: vertical;
+}
+
+.addentry-submit {
+    padding: 0.8rem;
+    background: linear-gradient(135deg, #3dbcb0, #2a9d8f);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.addentry-submit:hover {
+    opacity: 0.9;
+}
+
+.addentry-submit:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.addentry-success {
+    padding: 0.7rem 0.9rem;
+    background: #d4f5ee;
+    color: #1a7a6a;
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+.addentry-error {
+    padding: 0.7rem 0.9rem;
+    background: #ffe0e0;
+    color: #7a1a1a;
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+/* ViewTimesheet */
+
+.timesheet {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+    margin: 2rem 3rem;
+}
+
+.timesheet-header {
+    background: linear-gradient(135deg, #3dbcb0 0%, #2a9d8f 100%);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.timesheet-header h2 {
+    color: #ffffff;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.timesheet-meta {
+    padding: 1.25rem 2rem;
+    display: flex;
+    gap: 2rem;
+    border-bottom: 1.5px solid #f0f0f0;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.timesheet-meta span strong {
+    color: #1a1a1a;
+}
+
+.timesheet-entries {
+    padding: 1rem 2rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* TimeEntry */
+
+.timeentry {
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: #f8fdfc;
+    border: 1px solid #e6f5f3;
+    font-size: 0.9rem;
+    gap: 1rem;
+}
+
+.timeentry:hover {
+    background: #eef9f7;
+}
+
+.timeentry-date {
+    color: #444;
+    font-weight: 500;
+}
+
+.timeentry-hours {
+    color: #2a9d8f;
+    font-weight: 700;
+    text-align: center;
+}
+
+.timeentry-desc {
+    color: #666;
+}
+
+.timesheet-add-entry {
+    padding: 0 2rem 2rem;
+}
+
+.action-btn {
+    padding: 0.35rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: none;
+    margin-right: 0.4rem;
+}
+ 
+.action-btn-approve {
+    background: #2a9d8f;
+    color: #fff;
+}
