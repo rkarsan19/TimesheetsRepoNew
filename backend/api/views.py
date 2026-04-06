@@ -55,8 +55,16 @@ def getConsultant(request, pk):
 def login(request):
     email = request.data.get('email')
     password = request.data.get('password')
+
+    if not email or not password:
+        return Response({"error": "Email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
-        user = User.objects.get(email=email, password=password)
+        user = User.objects.get(email=email)
+        if user.password != password:
+            return Response({"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED)
+        if not user.isActive:
+            return Response({"error": "User account is deactivated"}, status=status.HTTP_403_FORBIDDEN)
         serializer = UserSerializer(user, many=False)
         return Response(serializer.data)
     except User.DoesNotExist:
@@ -199,3 +207,26 @@ def calculatePay(request):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+# ── Admin ───────────────────────────────────────────
+
+@api_view(['PUT'])
+def deactivateUser(request, pk):
+    try:
+        user = User.objects.get(userID=pk)
+        user.isActive = False
+        user.save()
+        return Response({'message': 'User deactivated successfully'}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+@api_view(['PUT'])
+def resetPassword(request, pk):
+    try:
+        user = User.objects.get(userID=pk)
+        user.password = request.data.get('password')
+        user.save() 
+        return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
