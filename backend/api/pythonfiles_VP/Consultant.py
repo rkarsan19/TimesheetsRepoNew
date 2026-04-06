@@ -5,18 +5,16 @@ import Timesheet
 import Assignment
 import TimeEntry
 import User
+from .. import views
 
 class Consultant(User):
-	def Consultant(self, aUserId, aUsername, aEmail, aConsultantId):
-		"""@ParamType aUserId String
-		@ParamType aUsername String
-		@ParamType aEmail String
-		@ParamType aConsultantId String"""
-		pass
+	def __init__(self, aUserId, aUsername, aEmail, aConsultantId):
+		super.__init__(aUserId, aUsername, aEmail)
+		self.__consultantId = aConsultantId
+		self.__timesheets = []
 
 	def submitTimesheet(self, aTimesheetId):
-		"""@ParamType aTimesheetId String
-		@ReturnType void"""
+
 		pass
 
 	def withdrawTimesheet(self, aTimesheetId):
@@ -30,12 +28,11 @@ class Consultant(User):
 		pass
 
 	def viewTimesheets(self):
-		"""@ReturnType List"""
+		get 
 		pass
 
 	def getConsultantId(self):
-		"""@ReturnType String"""
-		return self.___consultantId
+		return self.__consultantId
 
 	def selectTimesheet(self, aTimesheetId):
 		"""@ParamType aTimesheetId String
@@ -49,21 +46,5 @@ class Consultant(User):
 		@ReturnType void"""
 		pass
 
-	def __init__(self):
-		self.___consultantId = None
-		"""@AttributeType String"""
-		self.___timsheets = None
-		"""@AttributeType List"""
-		self._timesheetList = None
-		"""@AttributeType TimesheetList
-		# @AssociationType TimesheetList
-		# @AssociationMultiplicity 1"""
-		self._timeSheets = []
-		"""@AttributeType Timesheet*
-		# @AssociationType Timesheet[]
-		# @AssociationMultiplicity 0..*"""
-		self._assignment = []
-		"""@AttributeType Assignment*
-		# @AssociationType Assignment[]
-		# @AssociationMultiplicity 1..*"""
+
 

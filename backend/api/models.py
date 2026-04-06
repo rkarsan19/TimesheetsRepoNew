@@ -21,9 +21,8 @@ class User(models.Model):
 
 # ── 2. CONSULTANT ─────────────────────────────────────
 class Consultant(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    skills = models.TextField(blank=True)
-    payRate = models.DecimalField(max_digits=8, decimal_places=2)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, to_field='userID')
+    consultantId = models.AutoField(primary_key=True)
 
     def __str__(self):
         return self.user.name
@@ -57,7 +56,7 @@ class Timesheet(models.Model):
     timesheetID = models.AutoField(primary_key=True)
     consultant = models.ForeignKey(Consultant, on_delete=models.CASCADE)
     lineManager = models.ForeignKey(LineManager, on_delete=models.SET_NULL, null=True)
-    submitDate = models.DateField(auto_now_add=True)
+    submitDate = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default='DRAFT')
     comments = models.TextField(blank=True)
 

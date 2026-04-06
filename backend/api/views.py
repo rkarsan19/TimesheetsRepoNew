@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from datetime import date
 from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip
 from .serializers import UserSerializer, ConsultantSerializer, LineManagerSerializer, TimesheetSerializer, TimesheetEntrySerializer, PaySlipSerializer
 
@@ -36,6 +37,19 @@ def updateUser(request, pk):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['GET'])
+def getConsultant(request, pk):
+    try:
+        consultant = Consultant.objects.get(consultantId=pk)
+        return Response({
+            'consultantId': consultant.consultantId,
+            'name': consultant.user.name,
+            'email': consultant.user.email,
+            'role': consultant.user.role,
+        })
+    except Consultant.DoesNotExist:
+        return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
+
 # ── LOGIN ─────────────────────────────────────────────
 @api_view(['POST'])
 def login(request):
@@ -49,6 +63,30 @@ def login(request):
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 # ── TIMESHEETS ────────────────────────────────────────
+@api_view(['POST'])
+def createTimesheet(request):
+    consultantId = request.data.get('consultantId')
+    weekCommencing = request.data.get('weekCommencing')
+    weekEnding = request.data.get('weekEnding')
+
+    # check if timesheet already exists for that week
+    existing = Timesheet.objects.filter(
+        consultant__consultantId=consultantId,
+        weekCommencing=weekCommencing
+    ).exists()
+
+    if existing:
+        return Response(
+            {'error': 'A timesheet already exists for this week'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    serializer = TimesheetSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['GET'])
 def getTimesheets(request):
     timesheets = Timesheet.objects.all()
@@ -61,12 +99,45 @@ def getTimesheet(request, pk):
     serializer = TimesheetSerializer(timesheet, many=False)
     return Response(serializer.data)
 
-@api_view(['POST'])
-def submitTimesheet(request):
-    serializer = TimesheetSerializer(data=request.data)
+@api_view(['PUT'])
+def submitTimesheet(request, pk):
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({"error": "Timesheet not found"}, status=status.HTTP_404_NOT_FOUND)
+    timesheet.status = 'SUBMITTED'
+    timesheet.submitDate = date.today()
+    timesheet.save()
+    serializer = TimesheetSerializer(timesheet)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def viewTimesheets(request, consultantId):
+    timesheets = Timesheet.objects.filter(consultant__consultantId=consultantId)
+    serializer = TimesheetSerializer(timesheets, many=True)
+    return Response(serializer.data)
+
+@api_view(['PUT'])
+def withdrawTimesheet(request, pk):
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({"error": "Timesheet not found"}, status=status.HTTP_404_NOT_FOUND)
+    timesheet.status = 'DRAFT'
+    timesheet.save()
+    serializer = TimesheetSerializer(timesheet, many=False)
+    return Response(serializer.data)
+
+@api_view(['PUT'])
+def editTimesheet(request, timesheetId, entryId):
+    try:
+        entry = TimesheetEntry.objects.get(id=entryId, timesheetID=timesheetId)
+    except TimesheetEntry.DoesNotExist:
+        return Response({'error': 'Entry not found'}, status=status.HTTP_404_NOT_FOUND)
+    serializer = TimesheetEntrySerializer(entry, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['PUT'])
