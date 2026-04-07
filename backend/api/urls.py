@@ -27,10 +27,15 @@ urlpatterns = [
     path('timesheets/<str:pk>/withdraw/', views.withdrawTimesheet),
     path('timesheets/<str:pk>/approve/', views.approveTimesheet),
     path('timesheets/<str:pk>/reject/', views.rejectTimesheet),
-
-    # Timesheet Entries
     path('timesheets/<str:pk>/entries/', views.getTimesheetEntries),
+    path('timesheets/<str:pk>/save-entries/', views.saveTimesheetEntries),
+    path('timesheets/<str:pk>/assignments/', views.getTimesheetAssignments),
+
+    # Entries
     path('entries/add/', views.addTimesheetEntry),
+
+    # Assignments
+    path('assignments/create/', views.createAssignment),
 
     # Payslips
     path('payslips/', views.getPaySlips),

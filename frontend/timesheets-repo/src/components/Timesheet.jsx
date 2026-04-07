@@ -31,9 +31,9 @@ const Timesheet = ({ timesheetId, timesheet, initialEntries = [] }) => {
             </div>
 
             <div className="timesheet-meta">
-                <span><strong>Consultant:</strong> {timesheet.consultant}</span>
-                <span><strong>Line Manager:</strong> {timesheet.lineManager}</span>
-                <span><strong>Submit Date:</strong> {timesheet.submitDate}</span>
+                <span><strong>Week Commencing:</strong> {timesheet.weekCommencing ?? '—'}</span>
+                <span><strong>Week Ending:</strong> {timesheet.weekEnding ?? '—'}</span>
+                {timesheet.submitDate && <span><strong>Submit Date:</strong> {timesheet.submitDate}</span>}
                 {timesheet.comments && <span><strong>Comments:</strong> {timesheet.comments}</span>}
             </div>
 
@@ -42,10 +42,10 @@ const Timesheet = ({ timesheetId, timesheet, initialEntries = [] }) => {
                     ? <p>No entries for this timesheet.</p>
                     : entries.map((entry) => (
                         <TimeEntry
-                            key={entry.pk} 
-                            date={entry.fields.date}
-                            hours={entry.fields.hoursWorked}
-                            desc={entry.fields.description}
+                            key={entry.id}
+                            date={entry.date}
+                            hours={entry.hoursWorked}
+                            desc={entry.description}
                         />
                     ))
                 }

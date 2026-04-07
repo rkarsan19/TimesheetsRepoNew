@@ -1,26 +1,37 @@
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import Timesheet from "./Timesheet";
 import '../styles/timesheets.css';
 
-const phonyTimesheets = [
-  { model: "api.timesheet", pk: 1, fields: { consultant: 1, lineManager: "Manager", submitDate: "2024-01-15", status: "APPROVED", comments: "All good" } },
-  { model: "api.timesheet", pk: 2, fields: { consultant: 2, lineManager: "Manager", submitDate: "2024-01-15", status: "SUBMITTED", comments: "" } },
-  { model: "api.timesheet", pk: 3, fields: { consultant: 1, lineManager: "Manager", submitDate: "2024-01-22", status: "DRAFT", comments: "" } }
-];
-
-const phonyEntries = [
-  { model: "api.timesheetentry", pk: 1, fields: { timesheet: 1, date: "2024-01-08", hoursWorked: "8.00", description: "Frontend development" } },
-  { model: "api.timesheetentry", pk: 2, fields: { timesheet: 1, date: "2024-01-09", hoursWorked: "7.50", description: "API integration" } },
-  { model: "api.timesheetentry", pk: 3, fields: { timesheet: 1, date: "2024-01-10", hoursWorked: "8.00", description: "Bug fixes" } },
-  { model: "api.timesheetentry", pk: 4, fields: { timesheet: 2, date: "2024-01-08", hoursWorked: "8.00", description: "Backend development" } },
-  { model: "api.timesheetentry", pk: 5, fields: { timesheet: 2, date: "2024-01-09", hoursWorked: "6.00", description: "Database setup" } }
-];
+const API_BASE = 'http://localhost:8000/api';
 
 const ViewTimesheetPage = ({ timesheetId, onBack }) => {
-    const timesheetObj = phonyTimesheets.find(ts => ts.pk === Number(timesheetId));
-    
-    const filteredEntries = phonyEntries.filter(entry => entry.fields.timesheet === Number(timesheetId));
+    const [timesheet, setTimesheet] = useState(null);
+    const [entries, setEntries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    if (!timesheetObj) return <div className="timesheetlist-content">Timesheet not found.</div>;
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [tsRes, entriesRes] = await Promise.all([
+                    axios.get(`${API_BASE}/timesheets/${timesheetId}/`),
+                    axios.get(`${API_BASE}/timesheets/${timesheetId}/entries/`),
+                ]);
+                setTimesheet(tsRes.data);
+                setEntries(entriesRes.data);
+            } catch (err) {
+                setError('Failed to load timesheet.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [timesheetId]);
+
+    if (loading) return <div className="timesheetlist-content"><p>Loading...</p></div>;
+    if (error)   return <div className="timesheetlist-content"><p className="text-danger">{error}</p></div>;
+    if (!timesheet) return <div className="timesheetlist-content"><p>Timesheet not found.</p></div>;
 
     return (
         <div>
@@ -33,8 +44,8 @@ const ViewTimesheetPage = ({ timesheetId, onBack }) => {
             )}
             <Timesheet
                 timesheetId={timesheetId}
-                timesheet={timesheetObj.fields}
-                initialEntries={filteredEntries}
+                timesheet={timesheet}
+                initialEntries={entries}
             />
         </div>
     );

@@ -2,41 +2,66 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import date
-from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip
-from .serializers import UserSerializer, ConsultantSerializer, LineManagerSerializer, TimesheetSerializer, TimesheetEntrySerializer, PaySlipSerializer
+from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment
+from .serializers import (
+    UserSerializer, ConsultantSerializer, LineManagerSerializer,
+    TimesheetSerializer, TimesheetDetailSerializer, TimesheetEntrySerializer,
+    PaySlipSerializer, AssignmentSerializer
+)
 
-# ── TEST ──────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# views.py
+# Contains all the API endpoint logic for the application.
+# Each function handles one HTTP request and returns a JSON
+# response. The @api_view decorator restricts which HTTP methods
+# each endpoint accepts (GET, POST, PUT, etc.).
+# ──────────────────────────────────────────────────────────────
+
+
+# ── TEST ──────────────────────────────────────────────────────
+# Simple health-check endpoint. Used to verify the Django server
+# is running and connected. Hit GET /api/test/ to check.
 @api_view(['GET'])
 def test(request):
     return Response({"message": "Django is connected!"})
 
-# ── USERS ─────────────────────────────────────────────
+
+# ── USERS ─────────────────────────────────────────────────────
+
+# Returns all users in the system. Used by the admin dashboard.
 @api_view(['GET'])
 def getUsers(request):
     users = User.objects.all()
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
 
+
+# Returns a single user by their userID primary key.
 @api_view(['GET'])
 def getUser(request, pk):
     user = User.objects.get(userID=pk)
     serializer = UserSerializer(user, many=False)
     return Response(serializer.data)
 
+
+# Updates a user's details (partial update — only send the fields
+# you want to change). Used by the admin dashboard.
 @api_view(['PUT'])
 def updateUser(request, pk):
     try:
-        user = User.objects.get(id=pk)
+        user = User.objects.get(userID=pk)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    # partial=True means fields not included in the request are left unchanged
+    serializer = UserSerializer(user, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.method == 'PUT':
-        serializer = UserSerializer(user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# Returns a consultant's profile including their name, email and role.
+# Also returns consultantId which the frontend stores after login.
 @api_view(['GET'])
 def getConsultant(request, pk):
     try:
@@ -50,7 +75,13 @@ def getConsultant(request, pk):
     except Consultant.DoesNotExist:
         return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
 
-# ── LOGIN ─────────────────────────────────────────────
+
+# ── LOGIN ─────────────────────────────────────────────────────
+# Authenticates a user by email and password.
+# Returns the user's data plus role-specific IDs:
+#   - consultantId for CONSULTANT users (needed to fetch their timesheets)
+#   - lineManagerId for LINE_MANAGER users
+# The frontend stores this response in localStorage after login.
 @api_view(['POST'])
 def login(request):
     email = request.data.get('email')
@@ -65,20 +96,44 @@ def login(request):
             return Response({"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED)
         if not user.isActive:
             return Response({"error": "User account is deactivated"}, status=status.HTTP_403_FORBIDDEN)
-        serializer = UserSerializer(user, many=False)
-        return Response(serializer.data)
+
+        data = dict(UserSerializer(user).data)
+
+        # Attach role-specific IDs so the frontend knows which records belong to this user
+        if user.role == 'CONSULTANT':
+            try:
+                data['consultantId'] = user.consultant.consultantId
+            except Consultant.DoesNotExist:
+                pass
+        elif user.role == 'LINE_MANAGER':
+            try:
+                data['lineManagerId'] = user.linemanager.id
+            except LineManager.DoesNotExist:
+                pass
+
+        return Response(data)
     except User.DoesNotExist:
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-# ── TIMESHEETS ────────────────────────────────────────
+# ── TIMESHEETS ────────────────────────────────────────────────
+
+# Creates a new timesheet for a consultant.
+# Expects: consultantId, weekCommencing (Monday date), weekEnding (Sunday date).
+# Prevents duplicate timesheets for the same consultant and week.
 @api_view(['POST'])
 def createTimesheet(request):
     consultantId = request.data.get('consultantId')
     weekCommencing = request.data.get('weekCommencing')
     weekEnding = request.data.get('weekEnding')
 
-    # check if timesheet already exists for that week
+    if not consultantId or not weekCommencing or not weekEnding:
+        return Response(
+            {'error': 'consultantId, weekCommencing and weekEnding are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Check if a timesheet already exists for this consultant and week
     existing = Timesheet.objects.filter(
         consultant__consultantId=consultantId,
         weekCommencing=weekCommencing
@@ -90,24 +145,46 @@ def createTimesheet(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    serializer = TimesheetSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        consultant = Consultant.objects.get(consultantId=consultantId)
+    except Consultant.DoesNotExist:
+        return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    # Create the timesheet with DRAFT status (consultant hasn't submitted yet)
+    timesheet = Timesheet.objects.create(
+        consultant=consultant,
+        weekCommencing=weekCommencing,
+        weekEnding=weekEnding,
+        status='DRAFT'
+    )
+    serializer = TimesheetSerializer(timesheet)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# Returns all timesheets in the system with consultant names included.
+# Used by the line manager view to show all non-draft timesheets.
 @api_view(['GET'])
 def getTimesheets(request):
     timesheets = Timesheet.objects.all()
-    serializer = TimesheetSerializer(timesheets, many=True)
+    # TimesheetDetailSerializer includes the consultant_name field
+    serializer = TimesheetDetailSerializer(timesheets, many=True)
     return Response(serializer.data)
 
+
+# Returns a single timesheet by its ID, including the consultant name.
+# Used when a consultant opens a timesheet to view or edit it.
 @api_view(['GET'])
 def getTimesheet(request, pk):
-    timesheet = Timesheet.objects.get(timesheetID=pk)
-    serializer = TimesheetSerializer(timesheet, many=False)
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
+    serializer = TimesheetDetailSerializer(timesheet)
     return Response(serializer.data)
 
+
+# Marks a timesheet as SUBMITTED and records today's date as the submit date.
+# Once submitted, the timesheet is visible to the line manager for review.
 @api_view(['PUT'])
 def submitTimesheet(request, pk):
     try:
@@ -120,12 +197,18 @@ def submitTimesheet(request, pk):
     serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
+
+# Returns all timesheets belonging to a specific consultant.
+# Used to populate the consultant's timesheet list view.
 @api_view(['GET'])
 def viewTimesheets(request, consultantId):
     timesheets = Timesheet.objects.filter(consultant__consultantId=consultantId)
     serializer = TimesheetSerializer(timesheets, many=True)
     return Response(serializer.data)
 
+
+# Reverts a submitted timesheet back to DRAFT status.
+# Allows a consultant to recall a timesheet before the line manager reviews it.
 @api_view(['PUT'])
 def withdrawTimesheet(request, pk):
     try:
@@ -134,13 +217,16 @@ def withdrawTimesheet(request, pk):
         return Response({"error": "Timesheet not found"}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'DRAFT'
     timesheet.save()
-    serializer = TimesheetSerializer(timesheet, many=False)
+    serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
+
+# Updates a single timesheet entry (one day row) by its ID.
+# Uses partial=True so only the provided fields are updated.
 @api_view(['PUT'])
 def editTimesheet(request, timesheetId, entryId):
     try:
-        entry = TimesheetEntry.objects.get(id=entryId, timesheetID=timesheetId)
+        entry = TimesheetEntry.objects.get(id=entryId, timesheet__timesheetID=timesheetId)
     except TimesheetEntry.DoesNotExist:
         return Response({'error': 'Entry not found'}, status=status.HTTP_404_NOT_FOUND)
     serializer = TimesheetEntrySerializer(entry, data=request.data, partial=True)
@@ -149,29 +235,49 @@ def editTimesheet(request, timesheetId, entryId):
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+# Marks a timesheet as APPROVED. Called by the line manager.
 @api_view(['PUT'])
 def approveTimesheet(request, pk):
-    timesheet = Timesheet.objects.get(timesheetID=pk)
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'APPROVED'
     timesheet.save()
-    serializer = TimesheetSerializer(timesheet, many=False)
+    serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
+
+# Marks a timesheet as REJECTED and saves the line manager's reason.
+# The rejection reason is stored in the comments field and displayed
+# to the consultant as a banner when they open the timesheet.
 @api_view(['PUT'])
 def rejectTimesheet(request, pk):
-    timesheet = Timesheet.objects.get(timesheetID=pk)
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'REJECTED'
+    timesheet.comments = request.data.get('comments', '')  # Rejection reason from the line manager
     timesheet.save()
-    serializer = TimesheetSerializer(timesheet, many=False)
+    serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
-# ── TIMESHEET ENTRIES ─────────────────────────────────
+
+# ── TIMESHEET ENTRIES ─────────────────────────────────────────
+
+# Returns all daily entries for a given timesheet.
+# Used by TimesheetDetail to populate the 7-day hours grid.
 @api_view(['GET'])
 def getTimesheetEntries(request, pk):
     entries = TimesheetEntry.objects.filter(timesheet=pk)
     serializer = TimesheetEntrySerializer(entries, many=True)
     return Response(serializer.data)
 
+
+# Creates a single new timesheet entry. Used as a fallback endpoint.
+# The main save flow now uses saveTimesheetEntries instead.
 @api_view(['POST'])
 def addTimesheetEntry(request):
     serializer = TimesheetEntrySerializer(data=request.data)
@@ -180,37 +286,124 @@ def addTimesheetEntry(request):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# ── PAYSLIP ───────────────────────────────────────────
+
+# Bulk-saves all 7 day entries for a timesheet in one request.
+# This is the main save endpoint used by the TimesheetDetail component.
+# It also:
+#   - Updates the timesheet's comments field
+#   - Creates or updates the linked assignment (client/assignment name)
+# All existing entries are deleted and replaced on each save to keep
+# things simple and avoid partial update conflicts.
+@api_view(['POST'])
+def saveTimesheetEntries(request, pk):
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    entries_data = request.data.get('entries', [])
+    comments = request.data.get('comments', '')
+    client_name = request.data.get('client_name', '').strip()
+    assignment_name = request.data.get('assignment_name', '').strip()
+
+    # Save consultant notes to the timesheet
+    timesheet.comments = comments
+    timesheet.save()
+
+    # Upsert the assignment: update if one already exists, create if not
+    if client_name or assignment_name:
+        existing = Assignment.objects.filter(timesheet=timesheet).first()
+        if existing:
+            existing.client_name = client_name
+            existing.assignment_name = assignment_name
+            existing.save()
+        else:
+            Assignment.objects.create(
+                timesheet=timesheet,
+                client_name=client_name,
+                assignment_name=assignment_name,
+                week_started=timesheet.weekCommencing,
+                week_ended=timesheet.weekEnding,
+            )
+
+    # Replace all existing entries with the new set from the frontend
+    TimesheetEntry.objects.filter(timesheet=timesheet).delete()
+    for entry in entries_data:
+        hours = float(entry.get('hoursWorked', 0) or 0)
+        overtime = float(entry.get('overtime_hours', 0) or 0)
+        TimesheetEntry.objects.create(
+            timesheet=timesheet,
+            date=entry['date'],
+            hoursWorked=hours,
+            overtime_hours=overtime,
+            work_type=entry.get('work_type', 'STANDARD'),
+            description=entry.get('description', ''),
+        )
+
+    return Response({'message': 'Entries saved successfully'}, status=status.HTTP_200_OK)
+
+
+# ── ASSIGNMENTS ───────────────────────────────────────────────
+
+# Creates a new assignment record directly via JSON payload.
+@api_view(['POST'])
+def createAssignment(request):
+    serializer = AssignmentSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Returns all assignments linked to a specific timesheet.
+# Used by TimesheetDetail to pre-fill the client and assignment fields.
+@api_view(['GET'])
+def getTimesheetAssignments(request, pk):
+    assignments = Assignment.objects.filter(timesheet=pk)
+    serializer = AssignmentSerializer(assignments, many=True)
+    return Response(serializer.data)
+
+
+# ── PAYSLIP ───────────────────────────────────────────────────
+
+# Returns all payslips in the system. Used by the Finance dashboard.
 @api_view(['GET'])
 def getPaySlips(request):
     payslips = PaySlip.objects.all()
     serializer = PaySlipSerializer(payslips, many=True)
     return Response(serializer.data)
 
+
+# Calculates and creates a payslip for a given consultant and timesheet.
+# Sums all hours from the timesheet entries to get totalHours.
+# NOTE: payRate is currently set to 0 — this needs to be implemented
+# when pay rate data is available per consultant.
 @api_view(['POST'])
 def calculatePay(request):
     consultant_id = request.data.get('consultant_id')
     timesheet_id = request.data.get('timesheet_id')
     try:
-        consultant = Consultant.objects.get(id=consultant_id)
+        consultant = Consultant.objects.get(consultantId=consultant_id)
         timesheet = Timesheet.objects.get(timesheetID=timesheet_id)
         entries = TimesheetEntry.objects.filter(timesheet=timesheet)
         totalHours = sum(entry.hoursWorked for entry in entries)
-        totalPay = totalHours * consultant.payRate
         payslip = PaySlip.objects.create(
             consultant=consultant,
             timesheet=timesheet,
             totalHours=totalHours,
-            payRate=consultant.payRate,
-            totalPay=totalPay
+            payRate=0,    # TODO: pull from consultant pay rate when available
+            totalPay=0
         )
         serializer = PaySlipSerializer(payslip)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    
-# ── Admin ───────────────────────────────────────────
 
+
+# ── ADMIN ─────────────────────────────────────────────────────
+
+# Deactivates a user account so they can no longer log in.
+# The account is not deleted — isActive is set to False.
 @api_view(['PUT'])
 def deactivateUser(request, pk):
     try:
@@ -220,14 +413,16 @@ def deactivateUser(request, pk):
         return Response({'message': 'User deactivated successfully'}, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-    
+
+
+# Resets a user's password to the value provided in the request body.
+# Expects: { "password": "newpassword" }
 @api_view(['PUT'])
 def resetPassword(request, pk):
     try:
         user = User.objects.get(userID=pk)
         user.password = request.data.get('password')
-        user.save() 
+        user.save()
         return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-    

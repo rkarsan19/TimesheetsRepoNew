@@ -13,4 +13,4 @@ frontend/timesheets-repo/node_modules/
 .vscode/
 
 .env
-backend/.env
+backend/.env.mcp.json
