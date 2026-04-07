@@ -7,7 +7,7 @@ urlpatterns = [
     # Users
     path('users/', views.getUsers),
     path('users/<str:pk>/', views.getUser),
-    path('users/<int:pk>/update', views.updateUser),
+    path('users/<int:pk>/update/', views.updateUser),
     path('consultants/<str:pk>/', views.getConsultant),
 
     # Admin actions

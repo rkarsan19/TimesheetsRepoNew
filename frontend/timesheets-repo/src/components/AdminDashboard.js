@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faClock, faKey, faUserSlash, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
 
-function AdminDashboard({ user, onLogout }) {
+function AdminDashboard({ user, onLogout, onProfileClick }) {
   const [activeCard, setActiveCard] = useState(null);
   const [userID, setUserID] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -56,6 +56,9 @@ function AdminDashboard({ user, onLogout }) {
       })
       .catch(() => showMessage('Could not connect to server', 'error'));
   };
+
+  const userName = user?.name || "Admin";
+  const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase(); //added so that userprofile can be accessed
 
   const cards = [
     {
@@ -117,6 +120,22 @@ function AdminDashboard({ user, onLogout }) {
             </button>
           ))}
         </div>
+
+          {/* user profile button */}
+          <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
+          <span style={{ color: '#0d7a7a', fontSize: '0.9rem' }}>{user.name}</span>
+          <div onClick={onProfileClick} style={{
+            width: "42px", height: "42px", borderRadius: "50%",
+            backgroundColor: "rgba(49, 163, 142, 0.51)",
+            border: "2px solid rgba(78, 203, 194, 0.6)",
+            color: '#fff',
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: "700", fontSize: "1rem",
+            cursor: 'pointer',
+          }}>
+            {initials}
+          </div>
+          </div>
 
         {/* Logout at bottom */}
         <div className="mt-auto">

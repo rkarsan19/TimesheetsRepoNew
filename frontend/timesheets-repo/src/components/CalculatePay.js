@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 
 const API_BASE_URL = "http://localhost:8000/api";
 
-function CalculatePay({ onBack }) {
+function CalculatePay({ onBack, onProfileClick, user }) {
   const [timesheets, setTimesheets] = useState([]);
   const [selectedTimesheetId, setSelectedTimesheetId] = useState("");
   const [result, setResult] = useState(null);
@@ -70,6 +70,9 @@ function CalculatePay({ onBack }) {
     }
   };
 
+  const userName = user?.name || "Admin";
+  const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
+
   return (
     <div className="container-fluid p-0 vh-100">
       <div className="row g-0 h-100">
@@ -121,6 +124,8 @@ function CalculatePay({ onBack }) {
             </div>
           )}
         </div>
+
+        
 
         <div
           className="col-6 d-flex align-items-center justify-content-center p-4"
@@ -205,6 +210,22 @@ function CalculatePay({ onBack }) {
           </div>
         </div>
       </div>
+
+      {/* user profile button */}      
+      <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
+          <span style={{ color: '#0d7a7a', fontSize: '0.9rem' }}>{user.name}</span>
+          <div onClick={onProfileClick} style={{
+            width: "42px", height: "42px", borderRadius: "50%",
+            backgroundColor: "rgba(49, 163, 142, 0.51)",
+            border: "2px solid rgba(78, 203, 194, 0.6)",
+            color: '#fff',
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: "700", fontSize: "1rem",
+            cursor: 'pointer',
+          }}>
+            {initials}
+          </div>
+          </div>
     </div>
   );
 }

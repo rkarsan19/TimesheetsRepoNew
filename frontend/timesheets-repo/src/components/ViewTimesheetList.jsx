@@ -32,7 +32,7 @@ const getSunday = (mondayStr) => {
   return sunday.toISOString().split('T')[0];
 };
 
-const TimesheetList = ({ consultantId, onLogout }) => {
+const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -54,6 +54,8 @@ const TimesheetList = ({ consultantId, onLogout }) => {
   }, [consultantId]);
 
   const fetchTimesheets = async () => {
+
+    
     try {
       setLoading(true);
       const res = await axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`);
@@ -123,8 +125,10 @@ const TimesheetList = ({ consultantId, onLogout }) => {
           >
             Sign out
           </button>
+
+          {/* user profile button */}
           <span style={{ color: '#fff', fontSize: '0.9rem' }}>{consultantName}</span>
-          <div style={{
+          <div onClick={onProfileClick} style={{
             width: 40, height: 40, borderRadius: '50%',
             background: 'rgba(255,255,255,0.3)',
             color: '#fff', fontWeight: 700, fontSize: '0.9rem',

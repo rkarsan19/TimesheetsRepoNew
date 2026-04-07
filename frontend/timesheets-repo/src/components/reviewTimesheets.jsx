@@ -9,7 +9,7 @@ import {
 
 const API_BASE = "http://localhost:8000/api";
 
-const ReviewTimesheets = ({ user, onLogout }) => {
+const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [timesheets, setTimesheets] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -138,12 +138,13 @@ const ReviewTimesheets = ({ user, onLogout }) => {
         <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
           <button className="btn btn-outline-light btn-sm" onClick={onLogout}>Sign out</button>
           <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userName}</span>
-          <div style={{
+          <div onClick={onProfileClick} style={{
             width: "42px", height: "42px", borderRadius: "50%",
             backgroundColor: "rgba(255,255,255,0.25)",
             border: "2px solid rgba(255,255,255,0.6)",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontWeight: "700", fontSize: "1rem",
+            cursor: 'pointer',
           }}>
             {initials}
           </div>
