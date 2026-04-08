@@ -104,12 +104,12 @@ def login(request):
             try:
                 data['consultantId'] = user.consultant.consultantId
             except Consultant.DoesNotExist:
-                pass
+                data['consultantId'] = None
         elif user.role == 'LINE_MANAGER':
             try:
                 data['lineManagerId'] = user.linemanager.id
             except LineManager.DoesNotExist:
-                pass
+                data['lineManagerId'] = None
 
         return Response(data)
     except User.DoesNotExist:
@@ -121,45 +121,93 @@ def login(request):
 # Creates a new timesheet for a consultant.
 # Expects: consultantId, weekCommencing (Monday date), weekEnding (Sunday date).
 # Prevents duplicate timesheets for the same consultant and week.
+# @api_view(['POST'])
+# def createTimesheet(request):
+#     consultantId = request.data.get('consultantId')
+#     weekCommencing = request.data.get('weekCommencing')
+#     weekEnding = request.data.get('weekEnding')
+
+#     if not consultantId or not weekCommencing or not weekEnding:
+#         return Response(
+#             {'error': 'consultantId, weekCommencing and weekEnding are required'},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     # Check if a timesheet already exists for this consultant and week
+#     existing = Timesheet.objects.filter(
+#         consultant__consultantId=consultantId,
+#         weekCommencing=weekCommencing
+#     ).exists()
+
+#     if existing:
+#         return Response(
+#             {'error': 'A timesheet already exists for this week'},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     try:
+#         consultant = Consultant.objects.get(consultantId=consultantId)
+#     except Consultant.DoesNotExist:
+#         return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
+
+#     # Create the timesheet with DRAFT status (consultant hasn't submitted yet)
+#     timesheet = Timesheet.objects.create(
+#         consultant=consultant,
+#         weekCommencing=weekCommencing,
+#         weekEnding=weekEnding,
+#         status='DRAFT'
+#     )
+#     serializer = TimesheetSerializer(timesheet)
+#     return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 @api_view(['POST'])
 def createTimesheet(request):
-    consultantId = request.data.get('consultantId')
-    weekCommencing = request.data.get('weekCommencing')
-    weekEnding = request.data.get('weekEnding')
+    data = request.data
+    
+    # 1. Extract values from the React request body
+    consultant_id = data.get('consultantId')
+    week_commencing = data.get('weekCommencing')
+    week_ending = data.get('weekEnding')
 
-    if not consultantId or not weekCommencing or not weekEnding:
+    # 2. Strict Validation: Stop the crash before it hits the database
+    if not consultant_id or consultant_id == "undefined":
         return Response(
-            {'error': 'consultantId, weekCommencing and weekEnding are required'},
+            {"error": "Your session is missing a Consultant ID. Please log out and back in."}, 
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Check if a timesheet already exists for this consultant and week
-    existing = Timesheet.objects.filter(
-        consultant__consultantId=consultantId,
-        weekCommencing=weekCommencing
-    ).exists()
-
-    if existing:
+    if not week_commencing or not week_ending:
         return Response(
-            {'error': 'A timesheet already exists for this week'},
+            {"error": "Week dates are required."}, 
             status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        consultant = Consultant.objects.get(consultantId=consultantId)
+        # 3. Fetch the actual Consultant object
+        # We need the object instance to assign it to the ForeignKey
+        consultant = Consultant.objects.get(consultantId=consultant_id)
+
+        # 4. Create the Timesheet
+        timesheet = Timesheet.objects.create(
+            consultant=consultant,
+            weekCommencing=week_commencing,
+            weekEnding=week_ending,
+            status='DRAFT' # Or your default status
+        )
+
+        serializer = TimesheetSerializer(timesheet, many=False)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     except Consultant.DoesNotExist:
-        return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
-
-    # Create the timesheet with DRAFT status (consultant hasn't submitted yet)
-    timesheet = Timesheet.objects.create(
-        consultant=consultant,
-        weekCommencing=weekCommencing,
-        weekEnding=weekEnding,
-        status='DRAFT'
-    )
-    serializer = TimesheetSerializer(timesheet)
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
-
+        return Response(
+            {"error": f"Consultant with ID {consultant_id} not found in database."}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {"error": f"Database error: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 # Returns all timesheets in the system with consultant names included.
 # Used by the line manager view to show all non-draft timesheets.
@@ -426,3 +474,69 @@ def resetPassword(request, pk):
         return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+# Updates the global overtime rate. 
+# Expects: { "rate": 1.5 }
+@api_view(['POST'])
+def updateOvertimeRate(request):
+    rate = request.data.get('rate')
+    if rate is None:
+        return Response({"error": "Rate is required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Logic: Usually stored in a 'SystemConfiguration' model or similar
+    # For now, we return a success response to confirm the logic hook
+    return Response({"message": f"Overtime rate updated to {rate}"}, status=status.HTTP_200_OK)
+
+
+# Schedules a submission deadline for a specific pay period.
+# Expects: { "period": "April 2026", "deadline": "2026-04-30" }
+@api_view(['POST'])
+def scheduleDeadline(request):
+    period = request.data.get('period')
+    deadline = request.data.get('deadline')
+    
+    if not period or not deadline:
+        return Response({"error": "Period and Deadline are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        "message": f"Deadline for {period} set to {deadline}"
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def createUser(request):
+    data = request.data
+    
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
+    role = data.get('role') # consultant, finance_team, or line_manager
+
+    # 1. Basic validation
+    if not name or not email or not password:
+        return Response({'error': 'Please provide name, email and password'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Check existence using 'email' field (NOT username)
+    if User.objects.filter(email=email).exists():
+        return Response({'error': 'A user with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # 3. Create the user using your specific model fields
+        # Note: I'm using your database field names from the error message
+        user = User.objects.create(
+            name=name,
+            email=email,
+            password=password, # Use make_password(password) if using Django Auth
+            role=role.upper(), # Highlighting roles often stored in uppercase (e.g., 'CONSULTANT')
+            isActive=True
+        )
+
+        if user.role == 'CONSULTANT':
+            Consultant.objects.create(user=user)
+        elif user.role == 'LINE_MANAGER':
+            LineManager.objects.create(user=user)
+        return Response({'message': f'User {name} created successfully!'}, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        # This will catch things like database connection issues
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

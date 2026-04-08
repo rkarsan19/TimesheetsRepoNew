@@ -5,6 +5,7 @@ urlpatterns = [
     path('test/', views.test),
 
     # Users
+    path('users/create-user/', views.createUser, name='create-user'), #DO NOT MOVE THIS ENDPOINT, USED IN FRONTEND
     path('users/', views.getUsers),
     path('users/<str:pk>/', views.getUser),
     path('users/<int:pk>/update/', views.updateUser),
@@ -13,6 +14,8 @@ urlpatterns = [
     # Admin actions
     path('users/<str:pk>/deactivate/', views.deactivateUser),
     path('users/<str:pk>/reset-password/', views.resetPassword),
+    path('users/<str:pk>/overtime-rate/', views.updateOvertimeRate),
+    path('users/<str:pk>/deadlines/', views.scheduleDeadline),
 
     # Login
     path('login/', views.login),
