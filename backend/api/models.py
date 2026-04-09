@@ -1,4 +1,7 @@
+import uuid
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 
 # ──────────────────────────────────────────────────────────────
 # models.py
@@ -128,7 +131,24 @@ class Assignment(models.Model):
         return f"{self.assignment_name} - {self.client_name}"
 
 
-# ── 8. SYSTEM SETTINGS ───────────────────────────────────────
+# ── 8. PASSWORD RESET TOKEN ───────────────────────────────────
+# Short-lived token generated when a user requests a password reset.
+# The token is emailed as part of a reset link and expires after 1 hour.
+# Once used it is marked so it cannot be replayed.
+class PasswordResetToken(models.Model):
+    email = models.EmailField()
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        return not self.used and timezone.now() < self.created_at + timedelta(hours=1)
+
+    def __str__(self):
+        return f"ResetToken({self.email}, used={self.used})"
+
+
+# ── 9. SYSTEM SETTINGS ───────────────────────────────────────
 # Singleton table storing global configuration values.
 # Only one row (id=1) is ever created via get_or_create.
 # overtime_limit: maximum overtime hours a consultant may log per day.

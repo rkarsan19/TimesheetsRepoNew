@@ -1,7 +1,9 @@
+import os
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import date
+from supabase import create_client
 from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings
 from .serializers import (
     UserSerializer, ConsultantSerializer, LineManagerSerializer,
@@ -517,6 +519,115 @@ def overtimeLimit(request):
 #     return Response({
 #         "message": f"Deadline for {period} set to {deadline}"
 #     }, status=status.HTTP_200_OK)
+
+
+# ── PASSWORD RESET (via Supabase Auth) ───────────────────────
+#
+# Flow:
+#   1. User submits email on the Forgot Password screen.
+#   2. We verify the email exists in our User table.
+#   3. We ensure a matching user exists in Supabase Auth (creating one if needed).
+#   4. We call Supabase's reset_password_for_email — Supabase sends the email.
+#   5. The user clicks the link, which redirects to the React app with
+#      an access_token + type=recovery in the URL hash.
+#   6. The React app POSTs the Supabase access_token + new password here.
+#   7. We verify the token with Supabase, find the user in our table, and
+#      update their password.
+
+def _supabase_admin():
+    """Return a Supabase client using the service role key (admin access)."""
+    url = os.getenv('SUPABASE_URL', '')
+    key = os.getenv('SUPABASE_SERVICE_KEY', '')
+    return create_client(url, key)
+
+def _supabase_anon():
+    """Return a Supabase client using the anon/public key."""
+    url = os.getenv('SUPABASE_URL', '')
+    key = os.getenv('SUPABASE_ANON_KEY', '')
+    return create_client(url, key)
+
+
+# POST /api/auth/forgot-password/
+# Body: { "email": "..." }
+@api_view(['POST'])
+def forgotPassword(request):
+    email = request.data.get('email', '').strip().lower()
+    if not email:
+        return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Always return the same message so we don't reveal whether an email is registered
+    generic_response = Response({'message': 'If that email is registered you will receive a reset link shortly.'})
+
+    # Step 1 — check the email exists in our own User table
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        return generic_response
+
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
+    try:
+        admin = _supabase_admin()
+
+        # Step 2 — ensure this user exists in Supabase Auth so Supabase can email them.
+        # If they're already there this will raise an error, which we can safely ignore.
+        try:
+            admin.auth.admin.create_user({
+                'email': user.email,
+                'email_confirm': True,
+                'password': str(uuid.uuid4()),  # Random — only our Django auth is used for login
+            })
+        except Exception:
+            pass  # User already exists in Supabase Auth
+
+        # Step 3 — trigger Supabase's built-in password reset email.
+        # Supabase sends the email through their own email service.
+        # The link in the email redirects to `frontend_url` with the access token in the hash.
+        anon = _supabase_anon()
+        anon.auth.reset_password_for_email(
+            user.email,
+            {'redirect_to': frontend_url},
+        )
+    except Exception as e:
+        print(f"[ERROR] Supabase password reset failed for {user.email}: {e}")
+        return Response(
+            {'error': 'Could not send reset email. Please check Supabase credentials in .env.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return generic_response
+
+
+# POST /api/auth/reset-password/
+# Body: { "supabase_token": "<access_token from URL hash>", "password": "<new password>" }
+@api_view(['POST'])
+def resetPassword(request):
+    supabase_token = request.data.get('supabase_token', '').strip()
+    new_password   = request.data.get('password', '').strip()
+
+    if not supabase_token or not new_password:
+        return Response({'error': 'Token and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(new_password) < 6:
+        return Response({'error': 'Password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Verify the Supabase access token and retrieve the user's email
+        admin = _supabase_admin()
+        response = admin.auth.get_user(supabase_token)
+        email = response.user.email
+    except Exception:
+        return Response({'error': 'Invalid or expired reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        return Response({'error': 'No account found for this email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.password = new_password
+    user.save()
+
+    return Response({'message': 'Password reset successfully. You can now log in.'})
 
 
 @api_view(['POST'])

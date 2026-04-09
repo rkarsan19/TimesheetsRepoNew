@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faClock, faUser, faLock } from "@fortawesome/free-solid-svg-icons";
 import loginBg from "../assets/login-bg.svg";
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin, onForgotPassword }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -145,6 +145,7 @@ const Login = ({ onLogin }) => {
               <button
                 type="button"
                 className="btn btn-link text-white p-0 text-decoration-underline"
+                onClick={onForgotPassword}
               >
                 Forgot Password?
               </button>

@@ -46,4 +46,8 @@ urlpatterns = [
 
     # System settings
     path('settings/overtime-limit/', views.overtimeLimit),
+
+    # Password reset
+    path('auth/forgot-password/', views.forgotPassword),
+    path('auth/reset-password/', views.resetPassword),
 ]
