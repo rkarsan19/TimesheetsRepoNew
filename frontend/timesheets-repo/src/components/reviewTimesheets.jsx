@@ -9,6 +9,22 @@ import {
 
 const API_BASE = "http://localhost:8000/api";
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return "—";
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric'
+  });
+};
+
+const statusLabel = (status) => {
+  switch (status) {
+    case "REJECTED":  return "Awaiting Resubmission";
+    case "SUBMITTED": return "Submitted";
+    case "APPROVED":  return "Approved";
+    default:          return status;
+  }
+};
+
 const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [timesheets, setTimesheets] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -196,13 +212,18 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
             </button>
             {showFilterMenu && (
               <div className="position-absolute bg-white border rounded shadow-sm p-2 mt-1" style={{ zIndex: 100, minWidth: "150px" }}>
-                {["", "SUBMITTED", "APPROVED", "REJECTED"].map((s) => (
+                {[
+                  { value: "", label: "All Statuses" },
+                  { value: "SUBMITTED", label: "Submitted" },
+                  { value: "APPROVED", label: "Approved" },
+                  { value: "REJECTED", label: "Awaiting Resubmission" },
+                ].map(({ value, label }) => (
                   <button
-                    key={s}
-                    className={`dropdown-item rounded ${statusFilter === s ? "active" : ""}`}
-                    onClick={() => { setStatusFilter(s); setShowFilterMenu(false); }}
+                    key={value}
+                    className={`dropdown-item rounded ${statusFilter === value ? "active" : ""}`}
+                    onClick={() => { setStatusFilter(value); setShowFilterMenu(false); }}
                   >
-                    {s === "" ? "All Statuses" : s}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -240,10 +261,10 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                 <tr key={ts.timesheetID}>
                   <td>{ts.timesheetID}</td>
                   <td>{ts.consultant_name ?? "—"}</td>
-                  <td>{ts.weekCommencing ?? "—"}</td>
-                  <td>{ts.weekEnding ?? "—"}</td>
-                  <td><span className={statusBadgeClass(ts.status)}>{ts.status}</span></td>
-                  <td>{ts.submitDate ?? "—"}</td>
+                  <td>{formatDate(ts.weekCommencing)}</td>
+                  <td>{formatDate(ts.weekEnding)}</td>
+                  <td><span className={statusBadgeClass(ts.status)}>{statusLabel(ts.status)}</span></td>
+                  <td>{formatDate(ts.submitDate)}</td>
                   <td className="text-center">
                     <button
                       className="btn btn-sm btn-outline-secondary"
@@ -265,7 +286,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
         <Modal.Header closeButton>
           <Modal.Title>
             Timesheet #{selectedTs?.timesheetID} —{" "}
-            <Badge bg={statusVariant(selectedTs?.status)}>{selectedTs?.status}</Badge>
+            <Badge bg={statusVariant(selectedTs?.status)}>{statusLabel(selectedTs?.status)}</Badge>
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -273,8 +294,8 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
             <>
               <div className="d-flex gap-4 mb-4 text-muted small">
                 <span><strong>Consultant:</strong> {selectedTs.consultant_name}</span>
-                <span><strong>Week:</strong> {selectedTs.weekCommencing} → {selectedTs.weekEnding}</span>
-                {selectedTs.submitDate && <span><strong>Submitted:</strong> {selectedTs.submitDate}</span>}
+                <span><strong>Week:</strong> {formatDate(selectedTs.weekCommencing)} → {formatDate(selectedTs.weekEnding)}</span>
+                {selectedTs.submitDate && <span><strong>Submitted:</strong> {formatDate(selectedTs.submitDate)}</span>}
               </div>
 
               <h6 className="fw-semibold mb-2">Entries</h6>
@@ -296,14 +317,14 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                   <tbody>
                     {entries.map((entry) => (
                       <tr key={entry.id}>
-                        <td>{entry.date}</td>
-                        <td>{entry.hoursWorked}</td>
+                        <td>{formatDate(entry.date)}</td>
+                        <td>{parseFloat(entry.hoursWorked).toFixed(1)}</td>
                         <td>{entry.description || "—"}</td>
                       </tr>
                     ))}
                     <tr className="table-light fw-semibold">
                       <td>Total</td>
-                      <td>{entries.reduce((sum, e) => sum + parseFloat(e.hoursWorked), 0).toFixed(2)}</td>
+                      <td>{entries.reduce((sum, e) => sum + parseFloat(e.hoursWorked), 0).toFixed(1)}</td>
                       <td></td>
                     </tr>
                   </tbody>
@@ -346,7 +367,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </Button>
           <Button
             variant="danger"
-            disabled={actionLoading || selectedTs?.status === "REJECTED"}
+            disabled={actionLoading || selectedTs?.status !== "SUBMITTED"}
             onClick={() => handleReject(selectedTs.timesheetID)}
           >
             {actionLoading ? <Spinner animation="border" size="sm" /> : (
@@ -355,7 +376,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </Button>
           <Button
             variant="success"
-            disabled={actionLoading || selectedTs?.status === "APPROVED"}
+            disabled={actionLoading || selectedTs?.status !== "SUBMITTED"}
             onClick={() => handleApprove(selectedTs.timesheetID)}
           >
             {actionLoading ? <Spinner animation="border" size="sm" /> : (
