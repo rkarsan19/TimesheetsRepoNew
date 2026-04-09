@@ -310,7 +310,9 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                   <thead className="table-light">
                     <tr>
                       <th>Date</th>
+                      <th>Work Type</th>
                       <th>Hours</th>
+                      <th>Overtime Hours</th>
                       <th>Description</th>
                     </tr>
                   </thead>
@@ -318,13 +320,17 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                     {entries.map((entry) => (
                       <tr key={entry.id}>
                         <td>{formatDate(entry.date)}</td>
+                        <td>{entry.work_type ? entry.work_type.charAt(0) + entry.work_type.slice(1).toLowerCase() : "—"}</td>
                         <td>{parseFloat(entry.hoursWorked).toFixed(1)}</td>
+                        <td>{parseFloat(entry.overtime_hours || 0).toFixed(1)}</td>
                         <td>{entry.description || "—"}</td>
                       </tr>
                     ))}
                     <tr className="table-light fw-semibold">
                       <td>Total</td>
+                      <td></td>
                       <td>{entries.reduce((sum, e) => sum + parseFloat(e.hoursWorked), 0).toFixed(1)}</td>
+                      <td>{entries.reduce((sum, e) => sum + parseFloat(e.overtime_hours || 0), 0).toFixed(1)}</td>
                       <td></td>
                     </tr>
                   </tbody>
