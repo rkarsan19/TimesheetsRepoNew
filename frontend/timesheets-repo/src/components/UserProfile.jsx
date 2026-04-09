@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import timedimebg from '../assets/TimeDimebg.svg';
+import greenbg from '../assets/login-bg.svg';
 import { faClock } from "@fortawesome/free-solid-svg-icons";
 
 
@@ -16,6 +17,13 @@ function UserProfile({user, setuser, onBack}) {
     const [formData, setFormData] = useState({});
     const [Message, setMessage] = useState("");
     const [isEditing, setisEditing] = useState(false);
+    // const [image, setImage] = useState(false);
+    const [isError, setisError] = useState(false);
+
+
+    const userName = user?.name;
+
+    const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
 
     // Overtime limit (line manager only)
     const [overtimeLimit, setOvertimeLimit] = useState('');
@@ -36,6 +44,7 @@ function UserProfile({user, setuser, onBack}) {
             } catch(error) {
                 console.error("Error fetching user data", error);
                 setMessage("Failed to load user profile");
+                setisError(true);
             }
         };
         fetchUserdata();
@@ -59,15 +68,13 @@ function UserProfile({user, setuser, onBack}) {
                 const res = await axios.put(`http://localhost:8000/api/users/${UserID}/update/`, formData);
                 const storedUser = JSON.parse(localStorage.getItem('user'));
                 const updatedUser = { ...storedUser, ...res.data };
-                // console.log("storedUser:", storedUser);
-                // console.log("res.data:", res.data);
-                // console.log("updatedUser:", updatedUser);
                 setFormData(updatedUser);
                 setuser(updatedUser);
                 localStorage.setItem('user', JSON.stringify(updatedUser));
                 setMessage("Profile updated successfully");
                 setisEditing(false);
-                // onBack();
+                setisError(false);
+                
       
 
 
@@ -77,6 +84,7 @@ function UserProfile({user, setuser, onBack}) {
 
                 console.error("Error updating profile", error);
                 setMessage("Profile update unsuccessful, Please try again");
+                setisError(true);
 
             }
 
@@ -110,7 +118,7 @@ function UserProfile({user, setuser, onBack}) {
     };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', backgroundImage: `url(${timedimebg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', margin: 0, padding: 0, overflow: 'hidden'}}>
+    <div style={{ width: '100vw', height: '100vh', backgroundImage: `url(${timedimebg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', margin: 0, padding: 0, overflow: 'hidden', overflowY: 'scroll'}}>
 
      {/* Logo */}
           <div className="d-flex gap-2 text-white" style={{bottom: '20px', right: '20px', position: 'fixed'}}>
@@ -137,22 +145,40 @@ function UserProfile({user, setuser, onBack}) {
 
 
 
-      {Message && <p style={{...styles.Message, color: '#e8faf7'}}>{Message}</p>}
+      {Message && <p style={{...styles.Message, color: !isError ? '#9DE09D' : 'red' }}>{Message}</p>}
 
       {!isEditing ? (
         <div style={{...styles.card}}>
-          <p><strong>Name:</strong> {formData.name}</p>
-          <p><strong>Email:</strong> {formData.email}</p>
-          <p><strong>Role:</strong> {formData.role}</p>
+          <div style={{...styles.cardimg}}>
+            <img src={greenbg} style={styles.cardimgsvg}/>
+           
+
+            
+
+          </div>
+          <div style={{...styles.cardavatar}}>
+
+            <p style={{ display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: "700", fontSize: "1rem", marginTop: '12px', color: 'white'}}>
+              {initials}
+            </p>
+
+          </div>
+          <p style={{...styles.cardtitle}}>
+            {/* <strong>Name:</strong> */}
+            <strong>
+             {formData.name} </strong></p>
+          <p style={{...styles.cardsubtitle}}>{formData.email}</p>
+          <p style={{...styles.cardsubtitle, marginBottom: '20px'}}>{formData.role}</p>
           <button style={styles.btn} onClick={() => setisEditing(true)}>Edit Profile</button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={styles.card}>
+        <form onSubmit={handleSubmit} style={{...styles.card}}>
           <label style={styles.label}>Name</label>
-          <input style={styles.input} name="name" value={formData.name || ''} onChange={handleChange} />
+          <input style={{...styles.input}} name="name" value={formData.name || ''} onChange={handleChange} />
 
           <label style={styles.label}>Email</label>
-          <input style={styles.input} name="email" type="email" value={formData.email || ''} onChange={handleChange} />
+          <input style={{...styles.input, marginBottom: '30px'}}  name="email" type="email" value={formData.email || ''} onChange={handleChange} />
 
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
             <button type="submit" style={styles.btn}>Save Changes</button>
@@ -163,8 +189,8 @@ function UserProfile({user, setuser, onBack}) {
 
       {isLineManager && (
         <div style={{ ...styles.card, marginTop: '20px' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>Overtime Settings</p>
-          <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: '12px' }}>
+          <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333', marginTop: '10px' }}>Overtime Settings</p>
+          <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: '12px', textAlign: 'center' }}>
             Set the maximum overtime hours a consultant may log per day. This applies to all consultants.
           </p>
           <label style={styles.label}>Max overtime hours per day</label>
@@ -200,9 +226,63 @@ function UserProfile({user, setuser, onBack}) {
 const styles = {
   container: { maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' },
   heading: { color: '#00789A', marginBottom: '20px' },
-  card: { background: '#a8dfe8', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-  label: { display: 'block', marginTop: '12px', marginBottom: '4px', fontWeight: 'bold', color: '#333' },
-  input: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' },
+  // card2: { background: '#a8dfe8', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
+  card: {
+  backgroundColor: 'white',
+  position: 'relative',
+  width: '400px',
+  height: '395px',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  borderRadius: '20px',
+} ,
+
+cardimg: {
+  height: '140px',
+  width: '100%',
+},
+
+cardimgsvg: {
+  height: '100%',
+  width: '100%',
+  borderRadius: '20px 20px 0 0',
+},
+
+cardavatar: {
+  position: 'absolute',
+  width: '75px',
+  height: '75px',
+  borderRadius: '100%',
+  border: '5px solid #a8dfe8' , 
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  top: '100px',
+  backgroundColor: '#0d7a7a' ,
+  
+},
+
+cardavatarsvg: {
+  width: '100px',
+  height: '100px',
+},
+
+cardtitle: {
+  marginTop: '45px',
+  fontWeight: '500',
+  fontSize: '18px',
+},
+
+cardsubtitle: {
+  color: '#78858F',
+  fontWeight: '400',
+  fontSize: '15px',
+  marginTop: '5px',
+},
+
+  label: { display: 'block', marginTop: '30px', marginBottom: '10px', fontWeight: 'bold', color: '#333' },
+  input: { width: '90%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' },
   btn: { padding: '10px 20px', background: '#2DB5AA', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' },
   message: { color: 'green', marginBottom: '10px' },
 };

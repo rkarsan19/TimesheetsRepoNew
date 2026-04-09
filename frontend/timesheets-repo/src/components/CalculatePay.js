@@ -70,7 +70,7 @@ function CalculatePay({ onBack, onProfileClick, user }) {
     }
   };
 
-  const userName = user?.name || "Admin";
+  const userName = user?.name || "Finance Team";
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
 
   return (
