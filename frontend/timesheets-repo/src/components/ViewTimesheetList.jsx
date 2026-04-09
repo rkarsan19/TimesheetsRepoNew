@@ -25,6 +25,13 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric'
+  });
+};
+
 const getSunday = (mondayStr) => {
   const monday = new Date(mondayStr + 'T00:00:00');
   const sunday = new Date(monday);
@@ -104,43 +111,44 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
     <div style={{ minHeight: '100vh', background: '#f0f0f0', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ position: 'relative', overflow: 'hidden', height: '110px' }}>
-        <div style={{
-          position: 'absolute', inset: 0,
+      <div
+        className="text-white px-5 pt-4 pb-5"
+        style={{
           background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)',
-        }} />
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-          viewBox="0 0 7000 4000" preserveAspectRatio="xMinYMid slice">
-          <path style={{ opacity: 0.35 }} fillRule="evenodd" clipRule="evenodd" fill="#FFFFFF"
-            d="M0,1166.876V4000h4030.481C3501.117,1426.369,1382.347,3416.733,0,1166.876" />
-          <path style={{ opacity: 0.29 }} fillRule="evenodd" clipRule="evenodd" fill="#FFFFFF"
-            d="M2414.969,2473.216c-458.236-869.114-1287.852-740.558-2142.418-925.708c-90.707-19.653-181.696-42.841-272.551-71.13V4000h2759.611C2713.274,3292.356,2591.76,2808.533,2414.969,2473.216" />
-          <path style={{ opacity: 0.35 }} fillRule="evenodd" clipRule="evenodd" fill="#FFFFFF"
-            d="M0,1476.377V4000h2759.611h2.687c137.698-641.471,145.109-1104.106,61.803-1450.792C2495.544,1181.905,755.904,1618.136,32.519,0H0v1166.876V1476.377z" />
-        </svg>
-        <div style={{ position: 'absolute', top: 0, right: 0, height: '100%', display: 'flex', alignItems: 'center', paddingRight: '1.5rem', gap: '12px' }}>
+          minHeight: '180px',
+          position: 'relative',
+        }}
+      >
+        <div className="position-absolute d-flex align-items-center gap-2" style={{ top: '20px', right: '30px' }}>
           <button
             onClick={onLogout}
-            style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.7)', color: '#fff', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '0.85rem' }}
+            className="btn btn-outline-light btn-sm"
           >
             Sign out
           </button>
-
-          {/* user profile button */}
-          <span style={{ color: '#fff', fontSize: '0.9rem' }}>{consultantName}</span>
+          <span style={{ fontSize: '0.9rem', opacity: 0.9 }}>{consultantName}</span>
           <div onClick={onProfileClick} style={{
-            width: 40, height: 40, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.3)',
-            color: '#fff', fontWeight: 700, fontSize: '0.9rem',
+            width: '42px', height: '42px', borderRadius: '50%',
+            backgroundColor: 'rgba(255,255,255,0.25)',
+            border: '2px solid rgba(255,255,255,0.6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: '700', fontSize: '1rem',
+            cursor: 'pointer',
           }}>
             {initials}
           </div>
         </div>
+
+        <h1 className="fw-bold mb-3" style={{ fontSize: '2.2rem', marginTop: '10px' }}>
+          Welcome, {consultantName}
+        </h1>
+        <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
+          {timesheets.filter(ts => ts.status === 'SUBMITTED').length} awaiting review &nbsp;·&nbsp; {timesheets.filter(ts => ts.status === 'APPROVED').length} approved
+        </div>
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
+      <div className="mx-4" style={{ marginTop: '24px' }}>
         <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
 
           {/* Title row */}
@@ -174,10 +182,10 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
                 ) : (
                   timesheets.map(ts => (
                     <tr key={ts.timesheetID} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={{ padding: '14px 0' }}>{ts.weekCommencing || '—'}</td>
-                      <td style={{ padding: '14px 0' }}>{ts.weekEnding || '—'}</td>
+                      <td style={{ padding: '14px 0' }}>{formatDate(ts.weekCommencing)}</td>
+                      <td style={{ padding: '14px 0' }}>{formatDate(ts.weekEnding)}</td>
                       <td style={{ padding: '14px 0' }}><StatusBadge status={ts.status} /></td>
-                      <td style={{ padding: '14px 0', color: '#888' }}>{ts.submitDate || '—'}</td>
+                      <td style={{ padding: '14px 0', color: '#888' }}>{formatDate(ts.submitDate)}</td>
                       <td style={{ padding: '14px 0', textAlign: 'right' }}>
                         <button
                           onClick={() => setSelectedId(ts.timesheetID)}
