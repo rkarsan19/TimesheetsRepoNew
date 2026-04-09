@@ -39,6 +39,13 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
 
+  // Empty-fields confirmation
+  const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
+  const [emptyConfirmId, setEmptyConfirmId] = useState(null);
+  const [emptyDeclinedReason, setEmptyDeclinedReason] = useState('');
+  const [emptyDeclinedError, setEmptyDeclinedError] = useState('');
+  const [emptyDeclinedMode, setEmptyDeclinedMode] = useState(false); // true = showing rejection form
+
   const fetchTimesheets = async () => {
     try {
       const response = await axios.get(`${API_BASE}/timesheets/`);
@@ -69,14 +76,53 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     }
   };
 
+  const hasEmptyEntries = (entryList) =>
+    entryList.some(e => parseFloat(e.hoursWorked) === 0 && parseFloat(e.overtime_hours || 0) === 0);
+
   const handleApprove = async (id) => {
+    if (hasEmptyEntries(entries)) {
+      setEmptyConfirmId(id);
+      setEmptyDeclinedMode(false);
+      setEmptyDeclinedReason('');
+      setEmptyDeclinedError('');
+      setShowEmptyConfirm(true);
+      return;
+    }
+    await doApprove(id);
+  };
+
+  const doApprove = async (id) => {
     setActionLoading(true);
     try {
       await axios.put(`${API_BASE}/timesheets/${id}/approve/`);
       setSelectedTs(null);
+      setShowEmptyConfirm(false);
       fetchTimesheets();
     } catch (error) {
       console.error("Approval failed", error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEmptyConfirmNo = () => {
+    setEmptyDeclinedMode(true);
+  };
+
+  const handleEmptyConfirmReject = async () => {
+    if (!emptyDeclinedReason.trim()) {
+      setEmptyDeclinedError('Please provide a reason for rejection.');
+      return;
+    }
+    setActionLoading(true);
+    setEmptyDeclinedError('');
+    try {
+      await axios.put(`${API_BASE}/timesheets/${emptyConfirmId}/reject/`, { comments: emptyDeclinedReason.trim() });
+      setSelectedTs(null);
+      setShowEmptyConfirm(false);
+      fetchTimesheets();
+    } catch (error) {
+      console.error("Rejection failed", error);
     } finally {
       setActionLoading(false);
     }
@@ -389,6 +435,55 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
               <><FontAwesomeIcon icon={faCheck} className="me-1" />Approve</>
             )}
           </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Empty-fields confirmation modal */}
+      <Modal show={showEmptyConfirm} onHide={() => setShowEmptyConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Timesheet has empty fields</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {!emptyDeclinedMode ? (
+            <p className="mb-0">
+              Some days have no hours recorded. Do you still want to approve this timesheet?
+            </p>
+          ) : (
+            <>
+              <p className="text-muted small mb-3">Please provide a reason so the consultant knows what to fix.</p>
+              <label className="form-label fw-semibold small">Reason for rejection</label>
+              <textarea
+                className={`form-control ${emptyDeclinedError ? 'is-invalid' : ''}`}
+                rows={3}
+                placeholder="Enter a reason..."
+                value={emptyDeclinedReason}
+                onChange={e => { setEmptyDeclinedReason(e.target.value); setEmptyDeclinedError(''); }}
+              />
+              {emptyDeclinedError && <div className="invalid-feedback">{emptyDeclinedError}</div>}
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          {!emptyDeclinedMode ? (
+            <>
+              <Button variant="outline-secondary" onClick={() => setShowEmptyConfirm(false)}>Cancel</Button>
+              <Button variant="outline-danger" onClick={handleEmptyConfirmNo}>
+                No, send back
+              </Button>
+              <Button variant="success" disabled={actionLoading} onClick={() => doApprove(emptyConfirmId)}>
+                {actionLoading ? <Spinner animation="border" size="sm" /> : 'Yes, approve anyway'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline-secondary" onClick={() => setEmptyDeclinedMode(false)}>Back</Button>
+              <Button variant="danger" disabled={actionLoading} onClick={handleEmptyConfirmReject}>
+                {actionLoading ? <Spinner animation="border" size="sm" /> : (
+                  <><FontAwesomeIcon icon={faXmark} className="me-1" />Send back to consultant</>
+                )}
+              </Button>
+            </>
+          )}
         </Modal.Footer>
       </Modal>
 

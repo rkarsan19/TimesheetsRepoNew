@@ -13,40 +13,42 @@ import { faClock } from "@fortawesome/free-solid-svg-icons";
 
 
 function UserProfile({user, setuser, onBack}) {
-    // const [User, setUser] = useState(null);
     const [formData, setFormData] = useState({});
     const [Message, setMessage] = useState("");
     const [isEditing, setisEditing] = useState(false);
 
+    // Overtime limit (line manager only)
+    const [overtimeLimit, setOvertimeLimit] = useState('');
+    const [overtimeLimitMsg, setOvertimeLimitMsg] = useState('');
+    const [savingLimit, setSavingLimit] = useState(false);
+
     const storeduserid = JSON.parse(localStorage.getItem('user'));
-    const UserID = storeduserid?.userID;    
+    const UserID = storeduserid?.userID;
+    const isLineManager = (user?.role || storeduserid?.role) === 'LINE_MANAGER';
 
     useEffect(() => {
-
-      console.log("stored:", localStorage.getItem('user'));
-      console.log("UserID:", UserID);
-
-
         const fetchUserdata = async () => {
             try {
               const response = await axios.get(
                 `http://localhost:8000/api/users/${UserID}/`);
-                console.log("fetched user data:", response.data);
               setFormData(response.data);
               setuser(response.data);
-            } 
-            
-            catch(error) {
+            } catch(error) {
                 console.error("Error fetching user data", error);
-                setMessage("Failed to load user profile")
+                setMessage("Failed to load user profile");
             }
-          };
-          fetchUserdata();
-        }, [UserID]);
+        };
+        fetchUserdata();
+
+        if (isLineManager) {
+            axios.get('http://localhost:8000/api/settings/overtime-limit/')
+                .then(res => setOvertimeLimit(String(res.data.overtime_limit)))
+                .catch(() => {});
+        }
+    }, [UserID]);
 
         const handleChange = (e) => {
             setFormData({...formData, [e.target.name]: e.target.value});
-
         }
     
         const handleSubmit = async (e) => {
@@ -89,6 +91,24 @@ function UserProfile({user, setuser, onBack}) {
     
 
   
+    const handleSaveOvertimeLimit = async () => {
+        const val = parseFloat(overtimeLimit);
+        if (isNaN(val) || val < 0) {
+            setOvertimeLimitMsg('Please enter a valid number of hours (0 or more).');
+            return;
+        }
+        setSavingLimit(true);
+        setOvertimeLimitMsg('');
+        try {
+            await axios.post('http://localhost:8000/api/settings/overtime-limit/', { overtime_limit: val });
+            setOvertimeLimitMsg('Overtime limit updated successfully.');
+        } catch {
+            setOvertimeLimitMsg('Failed to update overtime limit.');
+        } finally {
+            setSavingLimit(false);
+        }
+    };
+
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundImage: `url(${timedimebg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', margin: 0, padding: 0, overflow: 'hidden'}}>
 
@@ -120,7 +140,6 @@ function UserProfile({user, setuser, onBack}) {
       {Message && <p style={{...styles.Message, color: '#e8faf7'}}>{Message}</p>}
 
       {!isEditing ? (
-     
         <div style={{...styles.card}}>
           <p><strong>Name:</strong> {formData.name}</p>
           <p><strong>Email:</strong> {formData.email}</p>
@@ -139,8 +158,39 @@ function UserProfile({user, setuser, onBack}) {
             <button type="submit" style={styles.btn}>Save Changes</button>
             <button type="button" style={{ ...styles.btn, background: '#aaa' }} onClick={() => setisEditing(false)}>Cancel</button>
           </div>
-          
         </form>
+      )}
+
+      {isLineManager && (
+        <div style={{ ...styles.card, marginTop: '20px' }}>
+          <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>Overtime Settings</p>
+          <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: '12px' }}>
+            Set the maximum overtime hours a consultant may log per day. This applies to all consultants.
+          </p>
+          <label style={styles.label}>Max overtime hours per day</label>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '6px' }}>
+            <input
+              style={{ ...styles.input, width: '100px' }}
+              type="number"
+              min="0"
+              step="0.5"
+              value={overtimeLimit}
+              onChange={e => { setOvertimeLimit(e.target.value); setOvertimeLimitMsg(''); }}
+            />
+            <button
+              style={styles.btn}
+              onClick={handleSaveOvertimeLimit}
+              disabled={savingLimit}
+            >
+              {savingLimit ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          {overtimeLimitMsg && (
+            <p style={{ marginTop: '8px', fontSize: '0.85rem', color: overtimeLimitMsg.includes('success') ? 'green' : '#c0392b' }}>
+              {overtimeLimitMsg}
+            </p>
+          )}
+        </div>
       )}
     </div>
     </div>

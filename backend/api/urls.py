@@ -43,4 +43,7 @@ urlpatterns = [
     # Payslips
     path('payslips/', views.getPaySlips),
     path('payslips/calculate/', views.calculatePay),
+
+    # System settings
+    path('settings/overtime-limit/', views.overtimeLimit),
 ]

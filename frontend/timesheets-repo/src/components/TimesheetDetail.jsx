@@ -33,15 +33,18 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [overtimeLimit, setOvertimeLimit] = useState(null); // null = not loaded yet
+  const [rowErrors, setRowErrors] = useState({}); // index → error string
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [tsRes, entriesRes, assignmentsRes] = await Promise.all([
+        const [tsRes, entriesRes, assignmentsRes, limitRes] = await Promise.all([
           axios.get(`${API_BASE}/timesheets/${timesheetId}/`),
           axios.get(`${API_BASE}/timesheets/${timesheetId}/entries/`),
           axios.get(`${API_BASE}/timesheets/${timesheetId}/assignments/`),
+          axios.get(`${API_BASE}/settings/overtime-limit/`),
         ]);
         const ts = tsRes.data;
         setTimesheet(ts);
@@ -52,6 +55,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
         if (ts.weekCommencing) {
           setDayRows(buildDayRows(ts.weekCommencing, entriesRes.data));
         }
+        setOvertimeLimit(parseFloat(limitRes.data.overtime_limit));
       } catch (err) {
         console.error('Failed to load timesheet:', err);
       } finally {
@@ -62,7 +66,21 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   }, [timesheetId]);
 
   const handleDayChange = (index, field, value) => {
-    setDayRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
+    setDayRows(prev => {
+      const updated = prev.map((row, i) => i === index ? { ...row, [field]: value } : row);
+      const row = updated[index];
+      const standard = parseFloat(row.hoursWorked) || 0;
+      const overtime = parseFloat(row.overtime_hours) || 0;
+      const total = standard + overtime;
+      let err = '';
+      if (total > 24) {
+        err = 'Total hours in a day cannot exceed 24.';
+      } else if (overtimeLimit !== null && overtime > overtimeLimit) {
+        err = `Overtime cannot exceed the ${overtimeLimit}h limit set by your line manager.`;
+      }
+      setRowErrors(prev => ({ ...prev, [index]: err }));
+      return updated;
+    });
   };
 
   const totalStandard = dayRows.reduce((s, r) => s + (parseFloat(r.hoursWorked) || 0), 0);
@@ -99,7 +117,10 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
     }
   };
 
+  const hasErrors = Object.values(rowErrors).some(e => e);
+
   const handleSubmit = async () => {
+    if (hasErrors) return;
     await handleSave();
     try {
       await axios.put(`${API_BASE}/timesheets/${timesheetId}/submit/`);
@@ -214,53 +235,62 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
           </thead>
           <tbody>
             {dayRows.map((row, i) => (
-              <tr key={row.date} style={{ borderTop: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '10px 0' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{row.dayName}</div>
-                  <div style={{ fontSize: '0.78rem', color: '#aaa' }}>{row.displayDate}</div>
-                </td>
-                <td style={{ padding: '10px 12px 10px 0' }}>
-                  <input
-                    type="number" min="0" max="24" step="0.5"
-                    value={row.hoursWorked}
-                    disabled={!isEditable}
-                    onChange={e => handleDayChange(i, 'hoursWorked', e.target.value)}
-                    style={{ ...fieldStyle, width: '80px', textAlign: 'center' }}
-                  />
-                </td>
-                <td style={{ padding: '10px 12px 10px 0' }}>
-                  <input
-                    type="number" min="0" max="24" step="0.5"
-                    value={row.overtime_hours}
-                    disabled={!isEditable}
-                    onChange={e => handleDayChange(i, 'overtime_hours', e.target.value)}
-                    style={{ ...fieldStyle, width: '80px', textAlign: 'center' }}
-                  />
-                </td>
-                <td style={{ padding: '10px 12px 10px 0' }}>
-                  <select
-                    value={row.work_type}
-                    disabled={!isEditable}
-                    onChange={e => handleDayChange(i, 'work_type', e.target.value)}
-                    style={{ ...fieldStyle, width: '130px' }}
-                  >
-                    <option value="STANDARD">Standard</option>
-                    <option value="OVERTIME">Overtime</option>
-                    <option value="SICK">Sick</option>
-                    <option value="HOLIDAY">Holiday</option>
-                  </select>
-                </td>
-                <td style={{ padding: '10px 0' }}>
-                  <input
-                    type="text"
-                    placeholder="Optional note..."
-                    value={row.description}
-                    disabled={!isEditable}
-                    onChange={e => handleDayChange(i, 'description', e.target.value)}
-                    style={{ ...fieldStyle, width: '100%' }}
-                  />
-                </td>
-              </tr>
+              <>
+                <tr key={row.date} style={{ borderTop: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '10px 0' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{row.dayName}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#aaa' }}>{row.displayDate}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px 10px 0' }}>
+                    <input
+                      type="number" min="0" max="24" step="0.5"
+                      value={row.hoursWorked}
+                      disabled={!isEditable}
+                      onChange={e => handleDayChange(i, 'hoursWorked', e.target.value)}
+                      style={{ ...fieldStyle, width: '80px', textAlign: 'center' }}
+                    />
+                  </td>
+                  <td style={{ padding: '10px 12px 10px 0' }}>
+                    <input
+                      type="number" min="0" max="24" step="0.5"
+                      value={row.overtime_hours}
+                      disabled={!isEditable}
+                      onChange={e => handleDayChange(i, 'overtime_hours', e.target.value)}
+                      style={{ ...fieldStyle, width: '80px', textAlign: 'center', borderColor: rowErrors[i] ? '#c0392b' : undefined }}
+                    />
+                  </td>
+                  <td style={{ padding: '10px 12px 10px 0' }}>
+                    <select
+                      value={row.work_type}
+                      disabled={!isEditable}
+                      onChange={e => handleDayChange(i, 'work_type', e.target.value)}
+                      style={{ ...fieldStyle, width: '130px' }}
+                    >
+                      <option value="STANDARD">Standard</option>
+                      <option value="OVERTIME">Overtime</option>
+                      <option value="SICK">Sick</option>
+                      <option value="HOLIDAY">Holiday</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '10px 0' }}>
+                    <input
+                      type="text"
+                      placeholder="Optional note..."
+                      value={row.description}
+                      disabled={!isEditable}
+                      onChange={e => handleDayChange(i, 'description', e.target.value)}
+                      style={{ ...fieldStyle, width: '100%' }}
+                    />
+                  </td>
+                </tr>
+                {rowErrors[i] && (
+                  <tr key={`err-${i}`}>
+                    <td colSpan={5} style={{ padding: '0 0 8px 0', color: '#c0392b', fontSize: '0.8rem' }}>
+                      ⚠ {rowErrors[i]}
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </tbody>
         </table>
@@ -287,28 +317,31 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
 
       {/* Actions */}
       {isEditable && (
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || hasErrors}
             style={{
               padding: '10px 24px', borderRadius: '8px', border: '1px solid #ccc',
-              background: '#fff', cursor: 'pointer', fontWeight: 500,
+              background: '#fff', cursor: saving || hasErrors ? 'not-allowed' : 'pointer', fontWeight: 500,
+              opacity: hasErrors ? 0.6 : 1,
             }}
           >
             {saving ? 'Saving…' : 'Save Draft'}
           </button>
           <button
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || hasErrors}
             style={{
               padding: '10px 24px', borderRadius: '8px', border: 'none',
-              background: '#00789A', color: '#fff', cursor: 'pointer', fontWeight: 500,
+              background: '#00789A', color: '#fff', cursor: saving || hasErrors ? 'not-allowed' : 'pointer', fontWeight: 500,
+              opacity: hasErrors ? 0.6 : 1,
             }}
           >
             Submit Timesheet
           </button>
-          {saveMsg && <span style={{ color: saveMsg === 'Saved!' ? 'green' : 'red', fontSize: '0.85rem' }}>{saveMsg}</span>}
+          {hasErrors && <span style={{ color: '#c0392b', fontSize: '0.85rem' }}>Fix the errors above before saving.</span>}
+          {saveMsg && !hasErrors && <span style={{ color: saveMsg === 'Saved!' ? 'green' : 'red', fontSize: '0.85rem' }}>{saveMsg}</span>}
         </div>
       )}
     </div>

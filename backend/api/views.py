@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import date
-from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment
+from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings
 from .serializers import (
     UserSerializer, ConsultantSerializer, LineManagerSerializer,
     TimesheetSerializer, TimesheetDetailSerializer, TimesheetEntrySerializer,
@@ -475,17 +475,33 @@ def resetPassword(request, pk):
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
-# Updates the global overtime rate. 
+# Updates the global overtime rate.
 # Expects: { "rate": 1.5 }
 @api_view(['POST'])
 def updateOvertimeRate(request):
     rate = request.data.get('rate')
     if rate is None:
         return Response({"error": "Rate is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     # Logic: Usually stored in a 'SystemConfiguration' model or similar
     # For now, we return a success response to confirm the logic hook
     return Response({"message": f"Overtime rate updated to {rate}"}, status=status.HTTP_200_OK)
+
+
+# GET  /api/settings/overtime-limit/  — returns the current limit
+# POST /api/settings/overtime-limit/  — sets a new limit
+# Expects POST body: { "overtime_limit": 4 }
+@api_view(['GET', 'POST'])
+def overtimeLimit(request):
+    settings, _ = SystemSettings.objects.get_or_create(id=1)
+    if request.method == 'GET':
+        return Response({'overtime_limit': float(settings.overtime_limit)})
+    limit = request.data.get('overtime_limit')
+    if limit is None:
+        return Response({'error': 'overtime_limit is required'}, status=status.HTTP_400_BAD_REQUEST)
+    settings.overtime_limit = limit
+    settings.save()
+    return Response({'overtime_limit': float(settings.overtime_limit)})
 
 
 # Schedules a submission deadline for a specific pay period.
