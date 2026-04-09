@@ -182,7 +182,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
       </div>
 
       {/* Main card */}
-      <div className="mx-4 bg-white rounded-4 shadow-sm p-4" style={{ marginTop: "-30px", position: "relative" }}>
+      <div className="mx-4 bg-white rounded-4 shadow-sm p-4" style={{ marginTop: "24px" }}>
         <style>{"#ts-search::placeholder { color: #fff; opacity: 0.7; }"}</style>
         <div className="d-flex gap-2 mb-3 align-items-center">
           <div className="position-relative">
