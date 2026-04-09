@@ -491,17 +491,17 @@ def updateOvertimeRate(request):
 # GET  /api/settings/overtime-limit/  — returns the current limit
 # POST /api/settings/overtime-limit/  — sets a new limit
 # Expects POST body: { "overtime_limit": 4 }
-# @api_view(['GET', 'POST'])
-# def overtimeLimit(request):
-#     settings, _ = SystemSettings.objects.get_or_create(id=1)
-#     if request.method == 'GET':
-#         return Response({'overtime_limit': float(settings.overtime_limit)})
-#     limit = request.data.get('overtime_limit')
-#     if limit is None:
-#         return Response({'error': 'overtime_limit is required'}, status=status.HTTP_400_BAD_REQUEST)
-#     settings.overtime_limit = limit
-#     settings.save()
-#     return Response({'overtime_limit': float(settings.overtime_limit)})
+@api_view(['GET', 'POST'])
+def overtimeLimit(request):
+    settings, _ = SystemSettings.objects.get_or_create(id=1)
+    if request.method == 'GET':
+        return Response({'overtime_limit': float(settings.overtime_limit)})
+    limit = request.data.get('overtime_limit')
+    if limit is None:
+        return Response({'error': 'overtime_limit is required'}, status=status.HTTP_400_BAD_REQUEST)
+    settings.overtime_limit = limit
+    settings.save()
+    return Response({'overtime_limit': float(settings.overtime_limit)})
 
 
 # # Schedules a submission deadline for a specific pay period.
