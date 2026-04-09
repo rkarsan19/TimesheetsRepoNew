@@ -595,25 +595,11 @@ def forgotPassword(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    # Step 3 — generate the reset link via admin API and send it using the anon client
+    # Step 3 — send the password reset email via Supabase
     try:
-        # Use admin to generate a recovery link (more reliable than anon reset_password_for_email)
-        link_response = admin.auth.admin.generate_link({
-            'type': 'recovery',
-            'email': user.email,
-            'options': {'redirect_to': frontend_url},
-        })
-        reset_link = link_response.properties.action_link
-        print(f"[INFO] Recovery link generated: {reset_link}")
-
-        # Now send the email via the anon client (triggers Supabase's email service)
         anon = _supabase_anon()
         anon.auth.reset_password_for_email(user.email, {'redirect_to': frontend_url})
-        print(f"[INFO] Reset email dispatched to {user.email}")
     except Exception as e:
-        import traceback
-        print(f"[ERROR] Reset email failed: {e}")
-        traceback.print_exc()
         err_str = str(e).lower()
         if 'security purposes' in err_str or 'after' in err_str:
             return Response(
