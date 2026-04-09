@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { Modal, Button, Spinner, Badge } from "react-bootstrap";
+import Loader from "./loadingAni";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faClock, faChartPie, faSearch, faFilter, faTimes, faCheck, faXmark, faEye,
@@ -67,7 +68,10 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     setRejectError('');
     setLoadingEntries(true);
     try {
-      const res = await axios.get(`${API_BASE}/timesheets/${ts.timesheetID}/entries/`);
+      const [res] = await Promise.all([
+        axios.get(`${API_BASE}/timesheets/${ts.timesheetID}/entries/`),
+        new Promise(resolve => setTimeout(resolve, 800)),
+      ]);
       setEntries(res.data);
     } catch (err) {
       console.error("Failed to load entries:", err);
@@ -346,8 +350,8 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
 
               <h6 className="fw-semibold mb-2">Entries</h6>
               {loadingEntries ? (
-                <div className="text-center py-4">
-                  <Spinner animation="border" size="sm" />
+                <div className="d-flex justify-content-center py-4">
+                  <Loader />
                 </div>
               ) : entries.length === 0 ? (
                 <p className="text-muted">No entries recorded for this timesheet.</p>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Button, Badge, Modal, Form, Alert, Spinner, Container, Row, Col } from 'react-bootstrap';
+import Loader from './loadingAni';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -49,7 +50,10 @@ const ConsultantDashboard = ({ onNavigate = () => {}, consultantId = 1 }) => {
   const fetchTimesheets = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`);
+      const [response] = await Promise.all([
+        axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`),
+        new Promise(resolve => setTimeout(resolve, 800)),
+      ]);
       setTimesheets(response.data);
       setError(null);
     } catch (err) {
@@ -238,8 +242,8 @@ const ConsultantDashboard = ({ onNavigate = () => {}, consultantId = 1 }) => {
 
           {/* Loading */}
           {loading && (
-            <div className="text-center py-5">
-              <Spinner animation="border" variant="secondary" />
+            <div className="d-flex justify-content-center py-5">
+              <Loader />
             </div>
           )}
 

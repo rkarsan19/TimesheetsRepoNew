@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Modal, Button, Form, Alert, Spinner } from "react-bootstrap";
+import Loader from "./loadingAni";
 import TimesheetDetail from "./TimesheetDetail";
 
 const API_BASE = 'http://localhost:8000/api';
@@ -65,7 +66,10 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
     
     try {
       setLoading(true);
-      const res = await axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`);
+      const [res] = await Promise.all([
+        axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`),
+        new Promise(resolve => setTimeout(resolve, 800)),
+      ]);
       setTimesheets(res.data);
       setError(null);
     } catch {
@@ -162,7 +166,7 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
             </button>
           </div>
 
-          {loading && <div style={{ textAlign: 'center', padding: '3rem', color: '#aaa' }}><Spinner animation="border" size="sm" /></div>}
+          {loading && <div className="d-flex justify-content-center py-5"><Loader /></div>}
           {error && <Alert variant="danger">{error}</Alert>}
 
           {!loading && !error && (

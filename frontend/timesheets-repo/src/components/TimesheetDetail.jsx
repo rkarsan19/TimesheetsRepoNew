@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Loader from './loadingAni';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -45,6 +46,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
           axios.get(`${API_BASE}/timesheets/${timesheetId}/entries/`),
           axios.get(`${API_BASE}/timesheets/${timesheetId}/assignments/`),
           axios.get(`${API_BASE}/settings/overtime-limit/`),
+          new Promise(resolve => setTimeout(resolve, 800)),
         ]);
         const ts = tsRes.data;
         setTimesheet(ts);
@@ -130,7 +132,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
     }
   };
 
-  if (loading) return <div className="p-5 text-center text-muted">Loading...</div>;
+  if (loading) return <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}><Loader /></div>;
   if (!timesheet) return <div className="p-5 text-center text-danger">Timesheet not found.</div>;
 
   const isEditable = timesheet.status === 'DRAFT' || timesheet.status === 'REJECTED';
