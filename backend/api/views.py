@@ -1,4 +1,5 @@
 import os
+import uuid
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -565,33 +566,62 @@ def forgotPassword(request):
         return generic_response
 
     frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    admin = _supabase_admin()
 
+    # Step 2 — look up the user in Supabase Auth; create them if they don't exist yet
+    supabase_user_id = None
     try:
-        admin = _supabase_admin()
+        # List all auth users and find by email
+        auth_users = admin.auth.admin.list_users()
+        existing = next((u for u in auth_users if u.email and u.email.lower() == user.email.lower()), None)
 
-        # Step 2 — ensure this user exists in Supabase Auth so Supabase can email them.
-        # If they're already there this will raise an error, which we can safely ignore.
-        try:
-            admin.auth.admin.create_user({
+        if existing:
+            supabase_user_id = existing.id
+            print(f"[INFO] Found existing Supabase Auth user: {supabase_user_id}")
+        else:
+            created = admin.auth.admin.create_user({
                 'email': user.email,
                 'email_confirm': True,
-                'password': str(uuid.uuid4()),  # Random — only our Django auth is used for login
+                'password': str(uuid.uuid4()),
             })
-        except Exception:
-            pass  # User already exists in Supabase Auth
-
-        # Step 3 — trigger Supabase's built-in password reset email.
-        # Supabase sends the email through their own email service.
-        # The link in the email redirects to `frontend_url` with the access token in the hash.
-        anon = _supabase_anon()
-        anon.auth.reset_password_for_email(
-            user.email,
-            {'redirect_to': frontend_url},
-        )
+            supabase_user_id = created.user.id
+            print(f"[INFO] Created Supabase Auth user: {supabase_user_id}")
     except Exception as e:
-        print(f"[ERROR] Supabase password reset failed for {user.email}: {e}")
+        import traceback
+        print(f"[ERROR] Could not get/create Supabase Auth user: {e}")
+        traceback.print_exc()
         return Response(
-            {'error': 'Could not send reset email. Please check Supabase credentials in .env.'},
+            {'error': f'Supabase Auth error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    # Step 3 — generate the reset link via admin API and send it using the anon client
+    try:
+        # Use admin to generate a recovery link (more reliable than anon reset_password_for_email)
+        link_response = admin.auth.admin.generate_link({
+            'type': 'recovery',
+            'email': user.email,
+            'options': {'redirect_to': frontend_url},
+        })
+        reset_link = link_response.properties.action_link
+        print(f"[INFO] Recovery link generated: {reset_link}")
+
+        # Now send the email via the anon client (triggers Supabase's email service)
+        anon = _supabase_anon()
+        anon.auth.reset_password_for_email(user.email, {'redirect_to': frontend_url})
+        print(f"[INFO] Reset email dispatched to {user.email}")
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Reset email failed: {e}")
+        traceback.print_exc()
+        err_str = str(e).lower()
+        if 'security purposes' in err_str or 'after' in err_str:
+            return Response(
+                {'error': 'A reset link was already sent recently. Please wait a minute before trying again.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        return Response(
+            {'error': 'Could not send reset email. Please try again shortly.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
