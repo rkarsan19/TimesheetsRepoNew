@@ -14,8 +14,8 @@ urlpatterns = [
     # Admin actions
     path('users/<str:pk>/deactivate/', views.deactivateUser),
     path('users/<str:pk>/reset-password/', views.resetPassword),
-    path('users/<str:pk>/overtime-rate/', views.updateOvertimeRate),
-    path('users/<str:pk>/deadlines/', views.scheduleDeadline),
+    # path('users/<str:pk>/overtime-rate/', views.updateOvertimeRate),
+    # path('users/<str:pk>/deadlines/', views.scheduleDeadline),
 
     # Login
     path('login/', views.login),

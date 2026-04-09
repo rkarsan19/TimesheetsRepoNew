@@ -98,39 +98,39 @@ function AdminDashboard({ user, onLogout, onProfileClick }) {
       .catch(() => showMessage('Could not connect to server', 'error'));
   };
 
-  const handleUpdateRate = () => {
-    if (!inputValue) {
-      showMessage('Please enter a rate', 'error');
-      return;
-    }
-    fetch(`http://localhost:8000/api/admin/update-rate/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rate: inputValue })
-    })
-    .then(res => res.json())
-    .then(data => {
-        showMessage(data.message || data.error, data.error ? 'error' : 'success');
-        setInputValue('');
-    });
-  };
+  // const handleUpdateRate = () => {
+  //   if (!inputValue) {
+  //     showMessage('Please enter a rate', 'error');
+  //     return;
+  //   }
+  //   fetch(`http://localhost:8000/api/admin/update-rate/`, {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ rate: inputValue })
+  //   })
+  //   .then(res => res.json())
+  //   .then(data => {
+  //       showMessage(data.message || data.error, data.error ? 'error' : 'success');
+  //       setInputValue('');
+  //   });
+  // };
 
-  const handleSetDeadline = () => {
-    if (!period || !inputValue) {
-      showMessage('Please fill in both period and deadline', 'error');
-      return;
-    }
-    fetch(`http://localhost:8000/api/admin/schedule-deadline/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period: period, deadline: inputValue })
-    })
-    .then(res => res.json())
-    .then(data => {
-        showMessage(data.message || data.error, data.error ? 'error' : 'success');
-        setPeriod(''); setInputValue('');
-    });
-  };
+  // const handleSetDeadline = () => {
+  //   if (!period || !inputValue) {
+  //     showMessage('Please fill in both period and deadline', 'error');
+  //     return;
+  //   }
+  //   fetch(`http://localhost:8000/api/admin/schedule-deadline/`, {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ period: period, deadline: inputValue })
+  //   })
+  //   .then(res => res.json())
+  //   .then(data => {
+  //       showMessage(data.message || data.error, data.error ? 'error' : 'success');
+  //       setPeriod(''); setInputValue('');
+  //   });
+  // };
 
   const userName = user?.name || "Admin";
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
@@ -139,8 +139,8 @@ function AdminDashboard({ user, onLogout, onProfileClick }) {
     { id: 'create', icon: faUserPlus, title: 'Create User', description: 'Add a new employee to the system' },
     { id: 'reset', icon: faKey, title: 'Reset Password', description: 'Reset a user\'s password by their ID' },
     { id: 'deactivate', icon: faUserSlash, title: 'Deactivate Account', description: 'Deactivate a user account by their ID' },
-    { id: 'rate', icon: faPercentage, title: 'Overtime Rate', description: 'Update global pay multipliers' },
-    { id: 'deadline', icon: faCalendarCheck, title: 'Set Deadline', description: 'Schedule timesheet cut-offs' },
+    // { id: 'rate', icon: faPercentage, title: 'Overtime Rate', description: 'Update global pay multipliers' },
+    // { id: 'deadline', icon: faCalendarCheck, title: 'Set Deadline', description: 'Schedule timesheet cut-offs' },
   ];
 
   return (
@@ -247,16 +247,16 @@ function AdminDashboard({ user, onLogout, onProfileClick }) {
                     <input type="password" className="form-control mb-3" placeholder="New Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} style={{ borderColor: '#b2e8e0' }} />
                   )}
 
-                  {card.id === 'rate' && (
+                  {/* {card.id === 'rate' && (
                     <input type="number" step="0.1" className="form-control mb-3" placeholder="New Rate (e.g. 1.5)" value={inputValue} onChange={e => setInputValue(e.target.value)} style={{ borderColor: '#b2e8e0' }} />
-                  )}
+                  )} */}
 
-                  {card.id === 'deadline' && (
+                  {/* {card.id === 'deadline' && (
                     <>
                       <input type="text" className="form-control mb-3" placeholder="Pay Period" value={period} onChange={e => setPeriod(e.target.value)} style={{ borderColor: '#b2e8e0' }} />
                       <input type="date" className="form-control mb-3" value={inputValue} onChange={e => setInputValue(e.target.value)} style={{ borderColor: '#b2e8e0' }} />
                     </>
-                  )}
+                  )} */}
 
                   <button 
                     className="btn w-100 text-white fw-semibold" 
@@ -265,8 +265,8 @@ function AdminDashboard({ user, onLogout, onProfileClick }) {
                         if (card.id === 'create') handleCreateUser();
                         else if (card.id === 'reset') handleReset();
                         else if (card.id === 'deactivate') handleDeactivate();
-                        else if (card.id === 'rate') handleUpdateRate();
-                        else if (card.id === 'deadline') handleSetDeadline();
+                        // else if (card.id === 'rate') handleUpdateRate();
+                        // else if (card.id === 'deadline') handleSetDeadline();
                     }}
                   >
                     {card.title}
