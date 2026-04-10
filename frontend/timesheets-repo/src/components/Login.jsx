@@ -1,12 +1,17 @@
 import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClock, faUser, faLock, faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
+import {
+  faClock, faEnvelope, faLock, faEye, faEyeSlash,
+  faCircleExclamation, faCircleCheck, faChartLine,
+  faUserTie, faClipboardCheck, faCalculator, faShieldHalved,
+} from "@fortawesome/free-solid-svg-icons";
 import loginBg from "../assets/login-bg.svg";
 
 const Login = ({ onLogin, onForgotPassword }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -14,7 +19,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
 
     fetch("http://localhost:8000/api/login/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },    
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: username, password: password }),
     })
       .then((res) => res.json())
@@ -28,147 +33,243 @@ const Login = ({ onLogin, onForgotPassword }) => {
       .catch(() => setError("Could not connect to server"));
   };
 
+  const inputStyle = {
+    width: "100%",
+    padding: "11px 14px",
+    border: "1.5px solid #e2e8f0",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+    outline: "none",
+    background: "#fff",
+    color: "#1a202c",
+    boxSizing: "border-box",
+    transition: "border-color 0.2s",
+  };
+
   return (
-    <div className="container-fluid p-0 vh-100">
-      <div className="row g-0 h-100">
+    <div style={{ display: "flex", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
 
-        {/* ── LEFT PANEL ── */}
-        <div
-          className="col-6 d-flex flex-column p-4 position-relative"
-          style={{
-            backgroundImage: `url(${loginBg})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundColor: "#0d7a7a",
-          }}
-        >
-          {/* Logo */}
-          <div className="d-flex align-items-center gap-2 text-white">
-            <div
-              className="rounded-circle border border-white border-2 d-flex align-items-center justify-content-center flex-shrink-0"
-              style={{ width: 46, height: 46 }}
-            >
-              <FontAwesomeIcon icon={faClock} />
-            </div>
-            <div>
-              <div className="fw-bold lh-1" style={{ fontSize: "1.3rem" }}>
-                TimeDime
-              </div>
-              <div className="opacity-75" style={{ fontSize: "0.7rem" }}>
-                FDM's time-tracking web application for consultants
-              </div>
-            </div>
-          </div>
-
-          {/* Watermark – bottom right */}
-          <div
-            className="position-absolute bottom-0 end-0 m-3 rounded-circle border border-white d-flex align-items-center justify-content-center text-white opacity-50"
-            style={{ width: 36, height: 36 }}
-          >
+      {/* ── LEFT PANEL – white form ── */}
+      <div
+        style={{
+          width: "45%",
+          background: "#ffffff",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          padding: "3rem 4rem",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "2.5rem" }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: "linear-gradient(135deg, #00789A, #2DB5AA)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: "1rem",
+          }}>
             <FontAwesomeIcon icon={faClock} />
           </div>
+          <span style={{ fontWeight: 700, fontSize: "1.2rem", color: "#1a202c" }}>TimeDime</span>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
-        <div
-          className="col-6 d-flex flex-column align-items-center justify-content-center position-relative"
-          style={{
-            background:
-              "linear-gradient(135deg, #b2e8e0 0%, #d4f5ef 55%, #e8faf7 100%)",
-          }}
-        >
-          {/* Welcome heading */}
-          <h1
-            className="fw-normal mb-4"
-            style={{ color: "#0d9e9e", fontSize: "2.8rem" }}
-          >
-            Welcome
-          </h1>
+        {/* Heading */}
+        <h1 style={{ fontSize: "2rem", fontWeight: 700, color: "#1a202c", marginBottom: "6px" }}>
+          Sign in
+        </h1>
+        <p style={{ fontSize: "0.875rem", color: "#718096", marginBottom: "2rem" }}>
+          Welcome back, enter your details below
+        </p>
 
-          {/* Login card */}
-          <div
-            className="rounded-3 p-4 shadow w-100"
-            style={{ backgroundColor: "#00a896", maxWidth: "400px" }}
-          >
-            <h2 className="text-white fw-bold mb-4">Log in</h2>
+        <form onSubmit={handleSubmit}>
+          {/* Email */}
+          <div style={{ marginBottom: "1.25rem" }}>
+            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#4a5568", marginBottom: "6px" }}>
+              Email address
+            </label>
+            <div style={{ position: "relative" }}>
+              <span style={{
+                position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+                color: "#a0aec0", fontSize: "0.85rem",
+              }}>
+                <FontAwesomeIcon icon={faEnvelope} />
+              </span>
+              <input
+                type="text"
+                placeholder="example@fdm.com"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+                style={{ ...inputStyle, paddingLeft: "36px" }}
+              />
+            </div>
+          </div>
 
-            <form onSubmit={handleSubmit}>
-              {/* Username */}
-              <div className="input-group mb-3 rounded-3 overflow-hidden">
-                <span className="input-group-text bg-white border-0 text-secondary">
-                  <FontAwesomeIcon icon={faUser} />
-                </span>
-                <input
-                  type="text"
-                  className="form-control border-0 shadow-none"
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
-                />
-              </div>
-
-              {/* Password */}
-              <div className="input-group mb-3 rounded-3 overflow-hidden">
-                <span className="input-group-text bg-white border-0 text-secondary">
-                  <FontAwesomeIcon icon={faLock} />
-                </span>
-                <input
-                  type="password"
-                  className="form-control border-0 shadow-none"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-
-              {error && (
-                <div
-                  className="mb-3 px-3 py-2 rounded-3 text-white"
-                  style={{ backgroundColor: "rgba(255,255,255,0.2)", fontSize: "0.875rem" }}
-                >
-                 <FontAwesomeIcon icon={faCircleExclamation} className="me-2" />{error}
-                </div>
-              )}
-
-              {/* Submit button */}
-              <button
-                type="submit"
-                className="btn w-100 text-white fw-semibold mb-3"
-                style={{ backgroundColor: "#a8dfe8" }}
-              >
-                Log in
-              </button>
-
-              {/* Forgot password */}
+          {/* Password */}
+          <div style={{ marginBottom: "0.75rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#4a5568" }}>
+                Password
+              </label>
               <button
                 type="button"
-                className="btn btn-link text-white p-0 text-decoration-underline"
                 onClick={onForgotPassword}
+                style={{ background: "none", border: "none", fontSize: "0.8rem", color: "#00789A", cursor: "pointer", padding: 0, fontWeight: 500 }}
               >
-                Forgot Password?
+                Forgot password?
               </button>
-
-      
-
-            </form>
+            </div>
+            <div style={{ position: "relative" }}>
+              <span style={{
+                position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)",
+                color: "#a0aec0", fontSize: "0.85rem",
+              }}>
+                <FontAwesomeIcon icon={faLock} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                style={{ ...inputStyle, paddingLeft: "36px", paddingRight: "40px" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                style={{
+                  position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
+                  background: "none", border: "none", cursor: "pointer", color: "#a0aec0", padding: 0,
+                }}
+              >
+                <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
+              </button>
+            </div>
           </div>
 
-          {/* Watermark – bottom right */}
-          <div
-            className="position-absolute bottom-0 end-0 m-3 rounded-circle border d-flex align-items-center justify-content-center opacity-50"
+          {/* Error */}
+          {error && (
+            <div style={{
+              background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: "8px",
+              padding: "10px 14px", marginBottom: "1rem",
+              display: "flex", alignItems: "center", gap: "8px",
+              fontSize: "0.85rem", color: "#c53030",
+            }}>
+              <FontAwesomeIcon icon={faCircleExclamation} />
+              {error}
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
             style={{
-              width: 34,
-              height: 34,
-              borderColor: "#0d9e9e",
-              color: "#0d9e9e",
+              width: "100%", padding: "12px",
+              background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)",
+              color: "#fff", border: "none", borderRadius: "8px",
+              fontWeight: 600, fontSize: "0.95rem", cursor: "pointer",
+              marginTop: "0.5rem", letterSpacing: "0.01em",
             }}
           >
-            <FontAwesomeIcon icon={faClock} />
+            Sign in
+          </button>
+        </form>
+      </div>
+
+      {/* ── RIGHT PANEL – dark teal with SVG ── */}
+      <div
+        style={{
+          width: "55%",
+          backgroundImage: `url(${loginBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundColor: "#00789A",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "3rem",
+          boxSizing: "border-box",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Top right help text */}
+        <div style={{
+          position: "absolute", top: "24px", right: "28px",
+          display: "flex", alignItems: "center", gap: "6px",
+          color: "rgba(255,255,255,0.8)", fontSize: "0.85rem",
+        }}>
+          <FontAwesomeIcon icon={faClock} style={{ fontSize: "0.9rem" }} />
+          <span>TimeDime</span>
+        </div>
+
+        {/* Feature card */}
+        <div style={{
+          background: "rgba(255,255,255,0.97)",
+          borderRadius: "16px",
+          padding: "1.75rem",
+          width: "100%",
+          maxWidth: "400px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          marginBottom: "2rem",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.6rem" }}>
+            <div style={{ fontWeight: 700, fontSize: "1.15rem", color: "#1a202c", lineHeight: 1.3 }}>
+              One platform, Every role
+            </div>
+            <div style={{
+              width: 48, height: 48, borderRadius: "12px",
+              background: "linear-gradient(135deg, #00789A, #2DB5AA)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontSize: "1.2rem", flexShrink: 0,
+            }}>
+              <FontAwesomeIcon icon={faChartLine} />
+            </div>
+          </div>
+
+          <p style={{ fontSize: "0.82rem", color: "#718096", marginBottom: "1.25rem", lineHeight: 1.6 }}>
+            TimeDime brings everyone together at FDM.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            {[
+              { icon: faUserTie,        label: "Consultants",   desc: "Log and submit weekly timesheets" },
+              { icon: faClipboardCheck, label: "Line Managers", desc: "Review and approve timesheets" },
+              { icon: faCalculator,     label: "Finance",       desc: "Calculate pay from approved hours" },
+              { icon: faShieldHalved,   label: "Admins",        desc: "Manage users other settings" },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{
+                background: "#f7fafa", borderRadius: "10px", padding: "12px",
+                display: "flex", flexDirection: "column", gap: "6px",
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: "8px",
+                  background: "linear-gradient(135deg, #00789A22, #2DB5AA33)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#00789A", fontSize: "0.9rem",
+                }}>
+                  <FontAwesomeIcon icon={icon} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: "0.8rem", color: "#1a202c" }}>{label}</div>
+                <div style={{ fontSize: "0.74rem", color: "#718096", lineHeight: 1.4 }}>{desc}</div>
+              </div>
+            ))}
           </div>
         </div>
 
+        {/* Bottom tagline */}
+        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.9)" }}>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: "8px" }}>
+            Built for FDM
+          </div>
+          <div style={{ fontSize: "0.85rem", opacity: 0.75, maxWidth: "320px", lineHeight: 1.6 }}>
+            Our way of helping you track your time. Time is money so why not use TimeDime?
+          </div>
+        </div>
       </div>
     </div>
   );
