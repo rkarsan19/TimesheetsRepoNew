@@ -69,8 +69,8 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
     setDayRows(prev => {
       const updated = prev.map((row, i) => i === index ? { ...row, [field]: value } : row);
       const row = updated[index];
-      const standard = parseFloat(row.hoursWorked) || 0;
-      const overtime = parseFloat(row.overtime_hours) || 0;
+      const standard = Math.floor(parseFloat(row.hoursWorked)* 10) / 10 || 0;
+      const overtime = Math.floor(parseFloat(row.overtime_hours)* 10) / 10 || 0;
       const total = standard + overtime;
       let err = '';
       if (total > 24) {
