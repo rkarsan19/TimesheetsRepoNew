@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClock, faUser, faLock } from "@fortawesome/free-solid-svg-icons";
+import { faClock, faUser, faLock, faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 import loginBg from "../assets/login-bg.svg";
 
 const Login = ({ onLogin, onForgotPassword }) => {
@@ -128,7 +128,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
                   className="mb-3 px-3 py-2 rounded-3 text-white"
                   style={{ backgroundColor: "rgba(255,255,255,0.2)", fontSize: "0.875rem" }}
                 >
-                 ❌ {error}
+                 <FontAwesomeIcon icon={faCircleExclamation} className="me-2" />{error}
                 </div>
               )}
 

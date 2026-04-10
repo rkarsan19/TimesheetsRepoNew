@@ -37,6 +37,9 @@ urlpatterns = [
     # Entries
     path('entries/add/', views.addTimesheetEntry),
 
+    # Clients
+    path('clients/', views.clients),
+
     # Assignments
     path('assignments/create/', views.createAssignment),
 

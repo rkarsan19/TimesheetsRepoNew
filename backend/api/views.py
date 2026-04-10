@@ -5,11 +5,11 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import date
 from supabase import create_client
-from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings
+from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings, Client
 from .serializers import (
     UserSerializer, ConsultantSerializer, LineManagerSerializer,
     TimesheetSerializer, TimesheetDetailSerializer, TimesheetEntrySerializer,
-    PaySlipSerializer, AssignmentSerializer
+    PaySlipSerializer, AssignmentSerializer, ClientSerializer
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -354,34 +354,23 @@ def saveTimesheetEntries(request, pk):
 
     entries_data = request.data.get('entries', [])
     comments = request.data.get('comments', '')
-    client_name = request.data.get('client_name', '').strip()
-    assignment_name = request.data.get('assignment_name', '').strip()
 
     # Save consultant notes to the timesheet
     timesheet.comments = comments
     timesheet.save()
-
-    # Upsert the assignment: update if one already exists, create if not
-    if client_name or assignment_name:
-        existing = Assignment.objects.filter(timesheet=timesheet).first()
-        if existing:
-            existing.client_name = client_name
-            existing.assignment_name = assignment_name
-            existing.save()
-        else:
-            Assignment.objects.create(
-                timesheet=timesheet,
-                client_name=client_name,
-                assignment_name=assignment_name,
-                week_started=timesheet.weekCommencing,
-                week_ended=timesheet.weekEnding,
-            )
 
     # Replace all existing entries with the new set from the frontend
     TimesheetEntry.objects.filter(timesheet=timesheet).delete()
     for entry in entries_data:
         hours = float(entry.get('hoursWorked', 0) or 0)
         overtime = float(entry.get('overtime_hours', 0) or 0)
+        client_id = entry.get('client_id') or None
+        client_obj = None
+        if client_id:
+            try:
+                client_obj = Client.objects.get(clientId=client_id)
+            except Client.DoesNotExist:
+                pass
         TimesheetEntry.objects.create(
             timesheet=timesheet,
             date=entry['date'],
@@ -389,9 +378,28 @@ def saveTimesheetEntries(request, pk):
             overtime_hours=overtime,
             work_type=entry.get('work_type', 'STANDARD'),
             description=entry.get('description', ''),
+            client=client_obj,
         )
 
     return Response({'message': 'Entries saved successfully'}, status=status.HTTP_200_OK)
+
+
+# ── CLIENTS ───────────────────────────────────────────────────
+
+# GET  /api/clients/  — returns all clients in the master list
+# POST /api/clients/  — creates a new client (admin use)
+@api_view(['GET', 'POST'])
+def clients(request):
+    if request.method == 'GET':
+        all_clients = Client.objects.all().order_by('name')
+        serializer = ClientSerializer(all_clients, many=True)
+        return Response(serializer.data)
+    # POST
+    serializer = ClientSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ── ASSIGNMENTS ───────────────────────────────────────────────

@@ -40,6 +40,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
+    setPage('dashboard');
   };
 
   // Password reset link opened in browser
@@ -64,7 +65,7 @@ function App() {
   }
 
   if (currentPage === 'profile') {
-    return <UserProfile user={user} setuser= {setUser} onBack={() => setPage('dashboard')} />;
+    return <UserProfile user={user} setuser={setUser} onBack={() => setPage('dashboard')} onLogout={handleLogout} />;
   }
 
   if (user.role === 'ADMIN') {

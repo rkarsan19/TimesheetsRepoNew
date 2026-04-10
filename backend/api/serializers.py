@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Consultant, LineManager, Administrator, Timesheet, TimesheetEntry, PaySlip, Assignment
+from .models import User, Consultant, LineManager, Administrator, Timesheet, TimesheetEntry, PaySlip, Assignment, Client
 
 # ──────────────────────────────────────────────────────────────
 # serializers.py
@@ -63,11 +63,25 @@ class TimesheetDetailSerializer(serializers.ModelSerializer):
         return obj.consultant.user.name
 
 
+# Master list of clients.
+class ClientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Client
+        fields = '__all__'
+
+
 # Converts TimesheetEntry (individual day rows) to/from JSON.
+# Includes client_name as a read-only computed field so the
+# frontend can display the name without a separate lookup.
 class TimesheetEntrySerializer(serializers.ModelSerializer):
+    client_name = serializers.SerializerMethodField()
+
     class Meta:
         model = TimesheetEntry
         fields = '__all__'
+
+    def get_client_name(self, obj):
+        return obj.client.name if obj.client else None
 
 
 # Converts PaySlip model instances to/from JSON.

@@ -93,10 +93,22 @@ class Timesheet(models.Model):
         return f"Timesheet {self.timesheetID} - {self.status}"
 
 
-# ── 6. TIMESHEET ENTRY ────────────────────────────────────────
+# ── 6. CLIENT ─────────────────────────────────────────────────
+# Master list of clients that consultants can be assigned to.
+# Managed by admins. Referenced per-day in timesheet entries.
+class Client(models.Model):
+    clientId = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=200)
+
+    def __str__(self):
+        return self.name
+
+
+# ── 7. TIMESHEET ENTRY ────────────────────────────────────────
 # One row per day within a timesheet (up to 7 rows per timesheet).
 # Stores how many standard and overtime hours were worked that day,
-# the work type (e.g. sick, holiday), and an optional note.
+# the work type (e.g. sick, holiday), an optional note, and which
+# client the consultant worked for that day.
 class TimesheetEntry(models.Model):
     WORK_TYPES = [
         ('STANDARD', 'Standard'),
@@ -105,17 +117,18 @@ class TimesheetEntry(models.Model):
         ('HOLIDAY', 'Holiday'),
     ]
     timesheet = models.ForeignKey(Timesheet, on_delete=models.CASCADE, related_name='entries')
-    date = models.DateField()                                             # The specific day this entry is for
-    hoursWorked = models.DecimalField(max_digits=4, decimal_places=2, default=0)     # Standard hours
-    overtime_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0) # Overtime hours
+    date = models.DateField()
+    hoursWorked = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    overtime_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0)
     work_type = models.CharField(max_length=20, choices=WORK_TYPES, default='STANDARD')
-    description = models.TextField(blank=True)                            # Optional note for that day
+    description = models.TextField(blank=True)
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='entries')
 
     def __str__(self):
         return f"{self.date} - {self.hoursWorked}hrs"
 
 
-# ── 7. ASSIGNMENT ─────────────────────────────────────────────
+# ── 9. ASSIGNMENT ─────────────────────────────────────────────
 # Links a timesheet to a client assignment.
 # The consultant fills in the client name and assignment name
 # when editing their timesheet so the line manager knows

@@ -13,7 +13,7 @@ import { faClock } from "@fortawesome/free-solid-svg-icons";
 
 
 
-function UserProfile({user, setuser, onBack}) {
+function UserProfile({user, setuser, onBack, onLogout}) {
     const [formData, setFormData] = useState({});
     const [Message, setMessage] = useState("");
     const [isEditing, setisEditing] = useState(false);
@@ -138,6 +138,9 @@ function UserProfile({user, setuser, onBack}) {
       <h2 style={{...styles.heading, color: '#e8faf7'}}>My Profile</h2>
       <div style={{}}>
       <button onClick={onBack} style={{...styles.btn, position: 'fixed', top: '20px', left: '20px' }}>Back</button>
+      {onLogout && (
+        <button onClick={onLogout} style={{...styles.btn, background: '#c0392b', position: 'fixed', top: '20px', right: '20px' }}>Sign out</button>
+      )}
       </div>
 
 

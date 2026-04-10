@@ -21,6 +21,7 @@ const buildDayRows = (weekCommencing, entries) => {
       overtime_hours: existing ? parseFloat(existing.overtime_hours || 0) : 0,
       work_type: existing?.work_type || 'STANDARD',
       description: existing?.description || '',
+      client_id: existing?.client || null,
     };
   });
 };
@@ -29,31 +30,28 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   const [timesheet, setTimesheet] = useState(null);
   const [dayRows, setDayRows] = useState([]);
   const [comments, setComments] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [assignmentName, setAssignmentName] = useState('');
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
-  const [overtimeLimit, setOvertimeLimit] = useState(null); // null = not loaded yet
-  const [rowErrors, setRowErrors] = useState({}); // index → error string
+  const [overtimeLimit, setOvertimeLimit] = useState(null);
+  const [rowErrors, setRowErrors] = useState({});
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [tsRes, entriesRes, assignmentsRes, limitRes] = await Promise.all([
+        const [tsRes, entriesRes, clientsRes, limitRes] = await Promise.all([
           axios.get(`${API_BASE}/timesheets/${timesheetId}/`),
           axios.get(`${API_BASE}/timesheets/${timesheetId}/entries/`),
-          axios.get(`${API_BASE}/timesheets/${timesheetId}/assignments/`),
+          axios.get(`${API_BASE}/clients/`),
           axios.get(`${API_BASE}/settings/overtime-limit/`),
           new Promise(resolve => setTimeout(resolve, 800)),
         ]);
         const ts = tsRes.data;
         setTimesheet(ts);
         setComments(ts.status === 'REJECTED' ? '' : (ts.comments || ''));
-        const a = assignmentsRes.data[0] || null;
-        setClientName(a?.client_name || '');
-        setAssignmentName(a?.assignment_name || '');
+        setClients(clientsRes.data);
         if (ts.weekCommencing) {
           setDayRows(buildDayRows(ts.weekCommencing, entriesRes.data));
         }
@@ -106,8 +104,6 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
       await axios.post(`${API_BASE}/timesheets/${timesheetId}/save-entries/`, {
         entries: dayRows,
         comments,
-        client_name: clientName,
-        assignment_name: assignmentName,
       });
       setSaveMsg('Saved!');
       setTimeout(() => setSaveMsg(''), 2000);
@@ -173,51 +169,19 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
         </div>
       )}
 
-      {/* Assignment Details */}
-      <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', marginBottom: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#333', marginBottom: '1rem' }}>Assignment details</div>
-        <hr style={{ margin: '0 0 1rem 0', borderColor: '#eee' }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '4px' }}>Client</div>
-            {isEditable ? (
-              <input
-                type="text"
-                value={clientName}
-                onChange={e => setClientName(e.target.value)}
-                placeholder="e.g. Barclays"
-                style={{ ...fieldStyle, width: '100%' }}
-              />
-            ) : (
-              <div style={{ fontWeight: 600 }}>{clientName || '—'}</div>
-            )}
+      {/* Timesheet meta */}
+      <div style={{ background: '#fff', borderRadius: '12px', padding: '1.25rem 1.5rem', marginBottom: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', gap: '2.5rem', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '2px' }}>Week commencing</div>
+          <div style={{ fontWeight: 600 }}>
+            {timesheet.weekCommencing
+              ? new Date(timesheet.weekCommencing + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '—'}
           </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '4px' }}>Assignment</div>
-            {isEditable ? (
-              <input
-                type="text"
-                value={assignmentName}
-                onChange={e => setAssignmentName(e.target.value)}
-                placeholder="e.g. Project Alpha"
-                style={{ ...fieldStyle, width: '100%' }}
-              />
-            ) : (
-              <div style={{ fontWeight: 600 }}>{assignmentName || '—'}</div>
-            )}
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '4px' }}>Week commencing</div>
-            <div style={{ fontWeight: 600 }}>
-              {timesheet.weekCommencing
-                ? new Date(timesheet.weekCommencing + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                : '—'}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '4px' }}>Submission deadline</div>
-            <div style={{ fontWeight: 600, color: '#c0392b' }}>{getDeadline()}</div>
-          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '2px' }}>Submission deadline</div>
+          <div style={{ fontWeight: 600, color: '#c0392b' }}>{getDeadline()}</div>
         </div>
       </div>
 
@@ -228,10 +192,11 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ fontSize: '0.7rem', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '16%' }}>Day</th>
-              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '18%' }}>Standard Hrs</th>
-              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '18%' }}>Overtime Hrs</th>
-              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '18%' }}>Work Type</th>
+              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '13%' }}>Day</th>
+              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '13%' }}>Standard Hrs</th>
+              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '13%' }}>Overtime Hrs</th>
+              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '14%' }}>Work Type</th>
+              <th style={{ textAlign: 'left', paddingBottom: '12px', width: '20%' }}>Client</th>
               <th style={{ textAlign: 'left', paddingBottom: '12px' }}>Notes</th>
             </tr>
           </thead>
@@ -269,10 +234,27 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
                       style={{ ...fieldStyle, width: '130px' }}
                     >
                       <option value="STANDARD">Standard</option>
-                      <option value="OVERTIME">Overtime</option>
                       <option value="SICK">Sick</option>
                       <option value="HOLIDAY">Holiday</option>
                     </select>
+                  </td>
+                  <td style={{ padding: '10px 12px 10px 0' }}>
+                    {isEditable ? (
+                      <select
+                        value={row.client_id || ''}
+                        onChange={e => handleDayChange(i, 'client_id', e.target.value ? parseInt(e.target.value) : null)}
+                        style={{ ...fieldStyle, width: '100%' }}
+                      >
+                        <option value="">— Select client —</option>
+                        {clients.map(c => (
+                          <option key={c.clientId} value={c.clientId}>{c.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div style={{ fontSize: '0.9rem' }}>
+                        {clients.find(c => c.clientId === row.client_id)?.name || '—'}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '10px 0' }}>
                     <input
@@ -287,7 +269,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
                 </tr>
                 {rowErrors[i] && (
                   <tr key={`err-${i}`}>
-                    <td colSpan={5} style={{ padding: '0 0 8px 0', color: '#c0392b', fontSize: '0.8rem' }}>
+                    <td colSpan={6} style={{ padding: '0 0 8px 0', color: '#c0392b', fontSize: '0.8rem' }}>
                       ⚠ {rowErrors[i]}
                     </td>
                   </tr>

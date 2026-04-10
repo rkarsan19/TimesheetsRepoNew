@@ -3,6 +3,8 @@ import axios from "axios";
 import { Modal, Button, Form, Alert, Spinner } from "react-bootstrap";
 import Loader from "./loadingAni";
 import TimesheetDetail from "./TimesheetDetail";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEye } from "@fortawesome/free-solid-svg-icons";
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -116,20 +118,13 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
 
       {/* Header */}
       <div
-        className="text-white px-5 pt-4 pb-5"
+        className="text-white px-5 pt-4 pb-4"
         style={{
           background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)',
-          minHeight: '180px',
           position: 'relative',
         }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{ top: '20px', right: '30px' }}>
-          <button
-            onClick={onLogout}
-            className="btn btn-outline-light btn-sm"
-          >
-            Sign out
-          </button>
           <span style={{ fontSize: '0.9rem', opacity: 0.9 }}>{consultantName}</span>
           <div onClick={onProfileClick} style={{
             width: '42px', height: '42px', borderRadius: '50%',
@@ -143,16 +138,23 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
           </div>
         </div>
 
-        <h1 className="fw-bold mb-3" style={{ fontSize: '2.2rem', marginTop: '10px' }}>
+        <h1 className="fw-bold mb-0" style={{ fontSize: '2.2rem', marginTop: '10px' }}>
           Welcome, {consultantName}
         </h1>
-        <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
-          {timesheets.filter(ts => ts.status === 'SUBMITTED').length} awaiting review &nbsp;·&nbsp; {timesheets.filter(ts => ts.status === 'APPROVED').length} approved
+      </div>
+
+      {/* Stats row above card */}
+      <div className="mx-4 d-flex gap-3 align-items-center" style={{ marginTop: '20px', marginBottom: '12px' }}>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: '0.875rem', color: '#00789A' }}>
+          <span><strong>{timesheets.filter(ts => ts.status === 'SUBMITTED').length}</strong> awaiting review</span>
+        </div>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: '0.875rem', color: '#2DB5AA' }}>
+          <span><strong>{timesheets.filter(ts => ts.status === 'APPROVED').length}</strong> approved</span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="mx-4" style={{ marginTop: '24px' }}>
+      <div className="mx-4" style={{ marginTop: '0' }}>
         <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
 
           {/* Title row */}
@@ -195,7 +197,9 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
                           onClick={() => setSelectedId(ts.timesheetID)}
                           style={{ background: 'none', border: '1px solid #ddd', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '0.83rem', color: '#555' }}
                         >
-                          {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit' : 'View'}
+                          {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit' : (
+                            <><FontAwesomeIcon icon={faEye} className="me-1" />View</>
+                          )}
                         </button>
                       </td>
                     </tr>

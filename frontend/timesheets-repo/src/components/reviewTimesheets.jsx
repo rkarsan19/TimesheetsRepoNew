@@ -33,6 +33,9 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // Modal state
+  const [pageLoading, setPageLoading] = useState(true);
+
+  // Modal state
   const [selectedTs, setSelectedTs] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
@@ -49,11 +52,17 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
 
   const fetchTimesheets = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/timesheets/`);
+      setPageLoading(true);
+      const [response] = await Promise.all([
+        axios.get(`${API_BASE}/timesheets/`),
+        new Promise(resolve => setTimeout(resolve, 800)),
+      ]);
       const nonDraft = response.data.filter((ts) => ts.status !== "DRAFT");
       setTimesheets(nonDraft);
     } catch (error) {
       console.error("Error fetching timesheets:", error);
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -194,15 +203,13 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
 
       {/* Header */}
       <div
-        className="text-white px-5 pt-4 pb-5"
+        className="text-white px-5 pt-4 pb-4"
         style={{
           background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)",
-          minHeight: "180px",
           position: "relative",
         }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
-          <button className="btn btn-outline-light btn-sm" onClick={onLogout}>Sign out</button>
           <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userName}</span>
           <div onClick={onProfileClick} style={{
             width: "42px", height: "42px", borderRadius: "50%",
@@ -216,23 +223,25 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </div>
         </div>
 
-        <h1 className="fw-bold mb-3" style={{ fontSize: "2.2rem", marginTop: "10px" }}>
+        <h1 className="fw-bold mb-0" style={{ fontSize: "2.2rem", marginTop: "10px" }}>
           Welcome, {userName}
         </h1>
-        <div className="d-flex gap-4 align-items-center flex-wrap">
-          <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>
-            <FontAwesomeIcon icon={faClock} className="me-2" />
-            {submitted} awaiting review
-          </span>
-          <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>
-            <FontAwesomeIcon icon={faChartPie} className="me-2" />
-            {total > 0 ? Math.round((approved / total) * 100) : 0}% approved
-          </span>
+      </div>
+
+      {/* Stats row above card */}
+      <div className="mx-4 d-flex gap-3 align-items-center" style={{ marginTop: "20px", marginBottom: "12px" }}>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: "0.875rem", color: "#00789A" }}>
+          <FontAwesomeIcon icon={faClock} />
+          <span><strong>{submitted}</strong> awaiting review</span>
+        </div>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: "0.875rem", color: "#2DB5AA" }}>
+          <FontAwesomeIcon icon={faChartPie} />
+          <span><strong>{total > 0 ? Math.round((approved / total) * 100) : 0}%</strong> approved</span>
         </div>
       </div>
 
       {/* Main card */}
-      <div className="mx-4 bg-white rounded-4 shadow-sm p-4" style={{ marginTop: "24px" }}>
+      <div className="mx-4 bg-white rounded-4 shadow-sm p-4" style={{ marginTop: "0" }}>
         <style>{"#ts-search::placeholder { color: #fff; opacity: 0.7; }"}</style>
         <div className="d-flex gap-2 mb-3 align-items-center">
           <div className="position-relative">
@@ -287,8 +296,31 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           >
             <FontAwesomeIcon icon={faTimes} /> Clear Filters
           </button>
+
+          {statusFilter && (
+            <div className="d-flex align-items-center gap-1 px-3 py-1 rounded-pill text-white" style={{ backgroundColor: "#00789A", fontSize: "0.8rem" }}>
+              <span>
+                {{
+                  SUBMITTED: "Submitted",
+                  APPROVED: "Approved",
+                  REJECTED: "Awaiting Resubmission",
+                }[statusFilter]}
+              </span>
+              <button
+                onClick={clearFilters}
+                className="btn-close btn-close-white ms-1"
+                style={{ fontSize: "0.55rem" }}
+                aria-label="Remove filter"
+              />
+            </div>
+          )}
         </div>
 
+        {pageLoading ? (
+          <div className="d-flex justify-content-center py-5">
+            <Loader />
+          </div>
+        ) : (
         <table className="table table-hover align-middle mb-0">
           <thead className="text-secondary" style={{ fontSize: "0.9rem" }}>
             <tr>
@@ -329,26 +361,36 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
             )}
           </tbody>
         </table>
+        )}
       </div>
 
       {/* Timesheet Detail Modal */}
-      <Modal show={!!selectedTs} onHide={() => setSelectedTs(null)} size="lg" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            Timesheet #{selectedTs?.timesheetID} —{" "}
-            <Badge bg={statusVariant(selectedTs?.status)}>{statusLabel(selectedTs?.status)}</Badge>
+      <Modal show={!!selectedTs} onHide={() => setSelectedTs(null)} size="xl" centered>
+        <Modal.Header closeButton style={{ borderBottom: '1px solid #e9ecef', padding: '1.25rem 1.5rem' }}>
+          <Modal.Title className="d-flex align-items-center gap-2">
+            <span>Timesheet #{selectedTs?.timesheetID}</span>
+            <Badge bg={statusVariant(selectedTs?.status)} style={{ fontSize: '0.75rem' }}>{statusLabel(selectedTs?.status)}</Badge>
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body style={{ padding: '1.5rem' }}>
           {selectedTs && (
             <>
-              <div className="d-flex gap-4 mb-4 text-muted small">
-                <span><strong>Consultant:</strong> {selectedTs.consultant_name}</span>
-                <span><strong>Week:</strong> {formatDate(selectedTs.weekCommencing)} → {formatDate(selectedTs.weekEnding)}</span>
-                {selectedTs.submitDate && <span><strong>Submitted:</strong> {formatDate(selectedTs.submitDate)}</span>}
+              {/* Meta info cards */}
+              <div className="d-flex gap-3 mb-4 flex-wrap">
+                {[
+                  { label: 'Consultant', value: selectedTs.consultant_name },
+                  { label: 'Week commencing', value: formatDate(selectedTs.weekCommencing) },
+                  { label: 'Week ending', value: formatDate(selectedTs.weekEnding) },
+                  ...(selectedTs.submitDate ? [{ label: 'Submitted', value: formatDate(selectedTs.submitDate) }] : []),
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px 16px', minWidth: '140px' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>{label}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{value}</div>
+                  </div>
+                ))}
               </div>
 
-              <h6 className="fw-semibold mb-2">Entries</h6>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '12px', color: '#333' }}>Daily entries</div>
               {loadingEntries ? (
                 <div className="d-flex justify-content-center py-4">
                   <Loader />
@@ -356,35 +398,48 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
               ) : entries.length === 0 ? (
                 <p className="text-muted">No entries recorded for this timesheet.</p>
               ) : (
-                <table className="table table-sm table-bordered">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Date</th>
-                      <th>Work Type</th>
-                      <th>Hours</th>
-                      <th>Overtime Hours</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.map((entry) => (
-                      <tr key={entry.id}>
-                        <td>{formatDate(entry.date)}</td>
-                        <td>{entry.work_type ? entry.work_type.charAt(0) + entry.work_type.slice(1).toLowerCase() : "—"}</td>
-                        <td>{parseFloat(entry.hoursWorked).toFixed(1)}</td>
-                        <td>{parseFloat(entry.overtime_hours || 0).toFixed(1)}</td>
-                        <td>{entry.description || "—"}</td>
+                <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #e9ecef' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)', color: '#fff' }}>
+                        <th style={{ padding: '12px 16px', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</th>
+                        <th style={{ padding: '12px 16px', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Work Type</th>
+                        <th style={{ padding: '12px 16px', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Std Hrs</th>
+                        <th style={{ padding: '12px 16px', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OT Hrs</th>
+                        <th style={{ padding: '12px 16px', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</th>
+                        <th style={{ padding: '12px 16px', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</th>
                       </tr>
-                    ))}
-                    <tr className="table-light fw-semibold">
-                      <td>Total</td>
-                      <td></td>
-                      <td>{entries.reduce((sum, e) => sum + parseFloat(e.hoursWorked), 0).toFixed(1)}</td>
-                      <td>{entries.reduce((sum, e) => sum + parseFloat(e.overtime_hours || 0), 0).toFixed(1)}</td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {entries.map((entry, idx) => (
+                        <tr key={entry.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fffe', borderBottom: '1px solid #eef0f0' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 500 }}>{formatDate(entry.date)}</td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{
+                              background: entry.work_type === 'SICK' ? '#fff3cd' : entry.work_type === 'HOLIDAY' ? '#d1e7dd' : '#e8f4f8',
+                              color: entry.work_type === 'SICK' ? '#856404' : entry.work_type === 'HOLIDAY' ? '#0a3622' : '#00789A',
+                              padding: '3px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 600,
+                            }}>
+                              {entry.work_type ? entry.work_type.charAt(0) + entry.work_type.slice(1).toLowerCase() : '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>{parseFloat(entry.hoursWorked).toFixed(1)}h</td>
+                          <td style={{ padding: '12px 16px' }}>{parseFloat(entry.overtime_hours || 0).toFixed(1)}h</td>
+                          <td style={{ padding: '12px 16px', color: entry.client_name ? '#333' : '#bbb' }}>{entry.client_name || '—'}</td>
+                          <td style={{ padding: '12px 16px', color: entry.description ? '#555' : '#bbb' }}>{entry.description || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f0f4f4', borderTop: '2px solid #dee2e6' }}>
+                        <td style={{ padding: '12px 16px', fontWeight: 700 }} colSpan={2}>Total</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 700 }}>{entries.reduce((sum, e) => sum + parseFloat(e.hoursWorked), 0).toFixed(1)}h</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 700 }}>{entries.reduce((sum, e) => sum + parseFloat(e.overtime_hours || 0), 0).toFixed(1)}h</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               )}
 
               {selectedTs.status !== 'REJECTED' && selectedTs.comments && (
