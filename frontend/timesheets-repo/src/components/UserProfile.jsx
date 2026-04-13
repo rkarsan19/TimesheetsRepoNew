@@ -139,7 +139,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
       <div style={{}}>
       <button onClick={onBack} style={{...styles.btn, position: 'fixed', top: '20px', left: '20px' }}>Back</button>
       {onLogout && (
-        <button onClick={onLogout} style={{...styles.btn, background: '#c0392b', position: 'fixed', top: '20px', right: '20px' }}>Sign out</button>
+        <button onClick={onLogout} style={{...styles.btn, background: '#0d7a7a', position: 'fixed', top: '20px', right: '20px' }}>Sign out</button>
       )}
       </div>
 
