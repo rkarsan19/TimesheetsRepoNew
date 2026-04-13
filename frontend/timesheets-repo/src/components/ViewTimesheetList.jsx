@@ -13,6 +13,7 @@ const STATUS_STYLE = {
   SUBMITTED: { bg: '#cff4fc', color: '#055160' },
   APPROVED:  { bg: '#d1e7dd', color: '#0a3622' },
   REJECTED:  { bg: '#f8d7da', color: '#842029' },
+  LATE:  { bg: '#f8d7da', color: '#842029' },
 };
 
 const StatusBadge = ({ status }) => {

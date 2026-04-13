@@ -21,6 +21,7 @@ const statusLabel = (status) => {
   switch (status) {
     case "REJECTED":  return "Awaiting Resubmission";
     case "SUBMITTED": return "Submitted";
+    case "LATE":      return "Late Submission";
     case "APPROVED":  return "Approved";
     default:          return status;
   }
@@ -91,6 +92,8 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
 
   const hasEmptyEntries = (entryList) =>
     entryList.some(e => parseFloat(e.hoursWorked) === 0 && parseFloat(e.overtime_hours || 0) === 0);
+
+  const isActionable = (status) => status === "SUBMITTED" || status === "LATE";
 
   const handleApprove = async (id) => {
     if (hasEmptyEntries(entries)) {
@@ -173,14 +176,15 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     return matchesSearch && matchesStatus;
   });
 
-  const submitted = timesheets.filter((ts) => ts.status === "SUBMITTED").length;
+  const submitted = timesheets.filter((ts) => ts.status === "SUBMITTED" || ts.status === "LATE").length;
   const approved = timesheets.filter((ts) => ts.status === "APPROVED").length;
   const total = timesheets.length;
 
   const statusBadgeClass = (status) => {
     switch (status) {
-      case "APPROVED": return "badge rounded-pill bg-success-subtle text-success";
+      case "APPROVED":  return "badge rounded-pill bg-success-subtle text-success";
       case "SUBMITTED": return "badge rounded-pill bg-warning-subtle text-warning";
+      case "LATE":      return "badge rounded-pill bg-orange-subtle text-orange";
       case "REJECTED":  return "badge rounded-pill bg-danger-subtle text-danger";
       default:          return "badge rounded-pill bg-secondary-subtle text-secondary";
     }
@@ -190,6 +194,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     switch (status) {
       case "APPROVED":  return "success";
       case "SUBMITTED": return "warning";
+      case "LATE":      return "warning";
       case "REJECTED":  return "danger";
       default:          return "secondary";
     }
@@ -284,6 +289,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                 {[
                   { value: "", label: "All Statuses" },
                   { value: "SUBMITTED", label: "Submitted" },
+                  { value: "LATE", label: "Late Submission" },
                   { value: "APPROVED", label: "Approved" },
                   { value: "REJECTED", label: "Awaiting Resubmission" },
                 ].map(({ value, label }) => (
@@ -312,6 +318,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
               <span>
                 {{
                   SUBMITTED: "Submitted",
+                  LATE: "Late Submission",
                   APPROVED: "Approved",
                   REJECTED: "Awaiting Resubmission",
                 }[statusFilter]}
@@ -355,7 +362,14 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                   <td>{ts.consultant_name ?? "—"}</td>
                   <td>{formatDate(ts.weekCommencing)}</td>
                   <td>{formatDate(ts.weekEnding)}</td>
-                  <td><span className={statusBadgeClass(ts.status)}>{statusLabel(ts.status)}</span></td>
+                  <td>
+                    <span
+                      className={statusBadgeClass(ts.status)}
+                      style={ts.status === "LATE" ? { backgroundColor: "#ffd798", color: "#e65100" } : {}}
+                    >
+                      {statusLabel(ts.status)}
+                    </span>
+                  </td>
                   <td>{formatDate(ts.submitDate)}</td>
                   <td className="text-center">
                     <button
@@ -379,7 +393,12 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
         <Modal.Header closeButton style={{ borderBottom: '1px solid #e9ecef', padding: '1.25rem 1.5rem' }}>
           <Modal.Title className="d-flex align-items-center gap-2">
             <span>Timesheet #{selectedTs?.timesheetID}</span>
-            <Badge bg={statusVariant(selectedTs?.status)} style={{ fontSize: '0.75rem' }}>{statusLabel(selectedTs?.status)}</Badge>
+            <Badge
+              bg={statusVariant(selectedTs?.status)}
+              style={selectedTs?.status === "LATE" ? { backgroundColor: "#e65100", fontSize: '0.75rem' } : { fontSize: '0.75rem' }}
+            >
+              {statusLabel(selectedTs?.status)}
+            </Badge>
           </Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ padding: '1.5rem' }}>
@@ -459,7 +478,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                 </div>
               )}
 
-              {selectedTs.status === 'SUBMITTED' && (
+              {isActionable(selectedTs.status) && (
                 <div className="mt-4">
                   <label className="form-label fw-semibold small">Reason for rejection</label>
                   <textarea
@@ -488,7 +507,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </Button>
           <Button
             variant="danger"
-            disabled={actionLoading || selectedTs?.status !== "SUBMITTED"}
+            disabled={actionLoading || !isActionable(selectedTs?.status)}
             onClick={() => handleReject(selectedTs.timesheetID)}
           >
             {actionLoading ? <Spinner animation="border" size="sm" /> : (
@@ -497,7 +516,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </Button>
           <Button
             variant="success"
-            disabled={actionLoading || selectedTs?.status !== "SUBMITTED"}
+            disabled={actionLoading || !isActionable(selectedTs?.status)}
             onClick={() => handleApprove(selectedTs.timesheetID)}
           >
             {actionLoading ? <Spinner animation="border" size="sm" /> : (

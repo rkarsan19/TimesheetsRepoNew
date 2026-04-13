@@ -90,9 +90,9 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   const getDeadline = () => {
     if (!timesheet?.weekCommencing) return '—';
     const monday = new Date(timesheet.weekCommencing + 'T00:00:00');
-    const friday = new Date(monday);
-    friday.setDate(monday.getDate() + 4);
-    return friday.toLocaleDateString('en-GB', {
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return sunday.toLocaleDateString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
     }) + ' · 17:00';
   };

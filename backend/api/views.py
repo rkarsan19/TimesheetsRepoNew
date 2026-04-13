@@ -244,9 +244,21 @@ def submitTimesheet(request, pk):
         return Response({"error": "Timesheet not found"}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'SUBMITTED'
     timesheet.submitDate = date.today()
+    if timesheet.weekEnding <= timesheet.submitDate:
+        timesheet.status = 'LATE'
     timesheet.save()
     serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
+
+'''  const getDeadline = () => {
+    if (!timesheet?.weekCommencing) return '—';
+    const monday = new Date(timesheet.weekCommencing + 'T00:00:00');
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return sunday.toLocaleDateString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+    }) + ' · 17:00';
+  };'''
 
 
 # Returns all timesheets belonging to a specific consultant.
