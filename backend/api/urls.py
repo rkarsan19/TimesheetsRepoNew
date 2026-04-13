@@ -39,6 +39,7 @@ urlpatterns = [
 
     # Clients
     path('clients/', views.clients),
+    path('clients/<str:pk>/rate/', views.updateClientRate),
 
     # Assignments
     path('assignments/create/', views.createAssignment),
@@ -46,6 +47,12 @@ urlpatterns = [
     # Payslips
     path('payslips/', views.getPaySlips),
     path('payslips/calculate/', views.calculatePay),
+    path('payslips/consultant/<str:pk>/', views.getConsultantPaySlips),
+
+    # Finance
+    path('consultants/', views.getConsultantsList),
+    path('consultants/<str:pk>/rate/', views.updateConsultantRate),
+    path('timesheets/<str:pk>/mark-paid/', views.markTimesheetAsPaid),
 
     # System settings
     path('settings/overtime-limit/', views.overtimeLimit),

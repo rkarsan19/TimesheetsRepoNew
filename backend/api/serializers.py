@@ -24,6 +24,16 @@ class ConsultantSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# Consultant with resolved name/email for Finance dropdowns.
+class ConsultantDetailSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='user.name', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+
+    class Meta:
+        model = Consultant
+        fields = ['consultantId', 'name', 'email', 'daily_rate']
+
+
 # Converts LineManager model instances to/from JSON.
 class LineManagerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,7 +73,7 @@ class TimesheetDetailSerializer(serializers.ModelSerializer):
         return obj.consultant.user.name
 
 
-# Master list of clients.
+# Master list of clients — includes daily_rate for finance pay calculations.
 class ClientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
@@ -85,15 +95,20 @@ class TimesheetEntrySerializer(serializers.ModelSerializer):
 
 
 # Converts PaySlip model instances to/from JSON.
+# Includes read-only consultant name and timesheet week dates for display.
 class PaySlipSerializer(serializers.ModelSerializer):
+    consultant_name = serializers.CharField(source='consultant.user.name', read_only=True)
+    week_commencing = serializers.DateField(source='timesheet.weekCommencing', read_only=True)
+    week_ending = serializers.DateField(source='timesheet.weekEnding', read_only=True)
+
     class Meta:
         model = PaySlip
         fields = '__all__'
 
 
 # Converts Assignment model instances to/from JSON.
-# Used to save/retrieve the client and assignment name
-# linked to a timesheet.
+# Includes daily_rate and the resolved client FK so the Finance
+# dashboard can use per-assignment rates in pay calculations.
 class AssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assignment

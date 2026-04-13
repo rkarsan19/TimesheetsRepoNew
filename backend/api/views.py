@@ -7,9 +7,9 @@ from datetime import date
 from supabase import create_client
 from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings, Client
 from .serializers import (
-    UserSerializer, ConsultantSerializer, LineManagerSerializer,
-    TimesheetSerializer, TimesheetDetailSerializer, TimesheetEntrySerializer,
-    PaySlipSerializer, AssignmentSerializer, ClientSerializer
+    UserSerializer, ConsultantSerializer, ConsultantDetailSerializer,
+    LineManagerSerializer, TimesheetSerializer, TimesheetDetailSerializer,
+    TimesheetEntrySerializer, PaySlipSerializer, AssignmentSerializer, ClientSerializer
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -398,6 +398,23 @@ def saveTimesheetEntries(request, pk):
 
 # ── CLIENTS ───────────────────────────────────────────────────
 
+# PUT /api/clients/<id>/rate/  — sets the daily rate for a client
+# Used by the Finance dashboard to configure per-client pay rates.
+@api_view(['PUT'])
+def updateClientRate(request, pk):
+    try:
+        client = Client.objects.get(clientId=pk)
+    except Client.DoesNotExist:
+        return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+    daily_rate = request.data.get('daily_rate')
+    if daily_rate is None:
+        return Response({'error': 'daily_rate is required'}, status=status.HTTP_400_BAD_REQUEST)
+    client.daily_rate = daily_rate
+    client.save()
+    serializer = ClientSerializer(client)
+    return Response(serializer.data)
+
+
 # GET  /api/clients/  — returns all clients in the master list
 # POST /api/clients/  — creates a new client (admin use)
 @api_view(['GET', 'POST'])
@@ -445,10 +462,62 @@ def getPaySlips(request):
     return Response(serializer.data)
 
 
+# Returns all payslips for a specific consultant, ordered newest first.
+# Used by the Finance dashboard Pay History panel.
+@api_view(['GET'])
+def getConsultantPaySlips(request, pk):
+    try:
+        consultant = Consultant.objects.get(consultantId=pk)
+    except Consultant.DoesNotExist:
+        return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
+    payslips = (
+        PaySlip.objects
+        .filter(consultant=consultant)
+        .select_related('consultant__user', 'timesheet')
+        .order_by('-generatedDate')
+    )
+    serializer = PaySlipSerializer(payslips, many=True)
+    return Response(serializer.data)
+
+
+# Returns all consultants with their names and daily rates.
+# Used by the Finance dashboard consultant dropdown.
+@api_view(['GET'])
+def getConsultantsList(request):
+    consultants = Consultant.objects.select_related('user').all()
+    serializer = ConsultantDetailSerializer(consultants, many=True)
+    return Response(serializer.data)
+
+
+# Updates the daily rate for a consultant.
+# Expects: { "daily_rate": 350.00 }
+@api_view(['PUT'])
+def updateConsultantRate(request, pk):
+    try:
+        consultant = Consultant.objects.get(consultantId=pk)
+    except Consultant.DoesNotExist:
+        return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
+    daily_rate = request.data.get('daily_rate')
+    if daily_rate is None:
+        return Response({'error': 'daily_rate is required'}, status=status.HTTP_400_BAD_REQUEST)
+    consultant.daily_rate = daily_rate
+    consultant.save()
+    serializer = ConsultantDetailSerializer(consultant)
+    return Response(serializer.data)
+
+
 # Calculates and creates a payslip for a given consultant and timesheet.
-# Sums all hours from the timesheet entries to get totalHours.
-# NOTE: payRate is currently set to 0 — this needs to be implemented
-# when pay rate data is available per consultant.
+#
+# Rate priority per entry (highest wins):
+#   1. Assignment.daily_rate  — where assignment.timesheet == this timesheet
+#                               AND assignment.client == entry.client
+#   2. Client.daily_rate      — fallback if no matching assignment
+#   3. Consultant.daily_rate  — final fallback if no client or client rate
+#
+# Formula: hourly = rate / 8
+#          entry_pay = hourly × std_hours + hourly × 1.5 × ot_hours
+#
+# Standard day = 8 hours (9am–5pm).
 @api_view(['POST'])
 def calculatePay(request):
     consultant_id = request.data.get('consultant_id')
@@ -456,19 +525,77 @@ def calculatePay(request):
     try:
         consultant = Consultant.objects.get(consultantId=consultant_id)
         timesheet = Timesheet.objects.get(timesheetID=timesheet_id)
-        entries = TimesheetEntry.objects.filter(timesheet=timesheet)
-        totalHours = sum(entry.hoursWorked for entry in entries)
+        entries = TimesheetEntry.objects.select_related('client').filter(timesheet=timesheet)
+
+        # Resolve the daily rate for this timesheet from its assignments.
+        # Priority:
+        #   1. Single assignment → its rate applies to every entry in the timesheet.
+        #   2. Multiple assignments → match by assignment.client == entry.client where possible,
+        #      fall back to the first assignment's rate for unmatched entries.
+        #   3. No assignment → use entry.client.daily_rate or consultant.daily_rate.
+        assignments = list(Assignment.objects.filter(timesheet=timesheet).select_related('client'))
+        assignment_rate_by_client = {}
+        assignment_default_rate = 0.0
+        if len(assignments) == 1:
+            assignment_default_rate = float(assignments[0].daily_rate)
+        elif len(assignments) > 1:
+            for asgn in assignments:
+                if asgn.client_id and float(asgn.daily_rate) > 0:
+                    assignment_rate_by_client[asgn.client_id] = float(asgn.daily_rate)
+            # Use the largest-rate assignment as default for entries without a matching client
+            assignment_default_rate = max((float(a.daily_rate) for a in assignments), default=0.0)
+
+        STANDARD_DAY_HOURS = 8
+        consultant_fallback = float(consultant.daily_rate)
+        total_std_hours = 0.0
+        total_ot_hours = 0.0
+        total_pay = 0.0
+
+        for entry in entries:
+            std = float(entry.hoursWorked)
+            ot = float(entry.overtime_hours or 0)
+
+            if entry.client_id and entry.client_id in assignment_rate_by_client:
+                rate = assignment_rate_by_client[entry.client_id]
+            elif assignment_default_rate > 0:
+                rate = assignment_default_rate
+            elif entry.client and float(entry.client.daily_rate) > 0:
+                rate = float(entry.client.daily_rate)
+            else:
+                rate = consultant_fallback
+
+            hourly = rate / STANDARD_DAY_HOURS
+            total_std_hours += std
+            total_ot_hours += ot
+            total_pay += hourly * std + hourly * 1.5 * ot
+
+        total_hours = total_std_hours + total_ot_hours
+        blended_hourly = (total_pay / total_hours) if total_hours > 0 else 0
+
         payslip = PaySlip.objects.create(
             consultant=consultant,
             timesheet=timesheet,
-            totalHours=totalHours,
-            payRate=0,    # TODO: pull from consultant pay rate when available
-            totalPay=0
+            totalHours=round(total_hours, 2),
+            payRate=round(blended_hourly, 4),
+            totalPay=round(total_pay, 2),
         )
         serializer = PaySlipSerializer(payslip)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Marks a timesheet as PAID. Called by the Finance team after generating a payslip.
+@api_view(['PUT'])
+def markTimesheetAsPaid(request, pk):
+    try:
+        timesheet = Timesheet.objects.get(timesheetID=pk)
+    except Timesheet.DoesNotExist:
+        return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
+    timesheet.status = 'PAID'
+    timesheet.save()
+    serializer = TimesheetSerializer(timesheet)
+    return Response(serializer.data)
 
 
 # ── ADMIN ─────────────────────────────────────────────────────

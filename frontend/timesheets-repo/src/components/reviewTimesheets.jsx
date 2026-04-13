@@ -23,6 +23,7 @@ const statusLabel = (status) => {
     case "SUBMITTED": return "Submitted";
     case "LATE":      return "Late Submission";
     case "APPROVED":  return "Approved";
+    case "PAID":      return "Paid";
     default:          return status;
   }
 };
@@ -186,6 +187,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
       case "SUBMITTED": return "badge rounded-pill bg-warning-subtle text-warning";
       case "LATE":      return "badge rounded-pill bg-orange-subtle text-orange";
       case "REJECTED":  return "badge rounded-pill bg-danger-subtle text-danger";
+      case "PAID":      return "badge rounded-pill bg-primary-subtle text-primary";
       default:          return "badge rounded-pill bg-secondary-subtle text-secondary";
     }
   };
@@ -196,6 +198,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
       case "SUBMITTED": return "warning";
       case "LATE":      return "warning";
       case "REJECTED":  return "danger";
+      case "PAID":      return "primary";
       default:          return "secondary";
     }
   };
@@ -291,6 +294,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                   { value: "SUBMITTED", label: "Submitted" },
                   { value: "LATE", label: "Late Submission" },
                   { value: "APPROVED", label: "Approved" },
+                  { value: "PAID", label: "Paid" },
                   { value: "REJECTED", label: "Awaiting Resubmission" },
                 ].map(({ value, label }) => (
                   <button
@@ -320,6 +324,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                   SUBMITTED: "Submitted",
                   LATE: "Late Submission",
                   APPROVED: "Approved",
+                  PAID: "Paid",
                   REJECTED: "Awaiting Resubmission",
                 }[statusFilter]}
               </span>

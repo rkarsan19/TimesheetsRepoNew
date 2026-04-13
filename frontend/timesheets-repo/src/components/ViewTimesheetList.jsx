@@ -13,7 +13,8 @@ const STATUS_STYLE = {
   SUBMITTED: { bg: '#cff4fc', color: '#055160' },
   APPROVED:  { bg: '#d1e7dd', color: '#0a3622' },
   REJECTED:  { bg: '#f8d7da', color: '#842029' },
-  LATE:  { bg: '#f8d7da', color: '#842029' },
+  LATE:      { bg: '#f8d7da', color: '#842029' },
+  PAID:      { bg: '#cfe2ff', color: '#084298' },
 };
 
 const StatusBadge = ({ status }) => {
@@ -171,6 +172,9 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
         <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm"
              style={{fontSize: '0.875rem', color: '#2DB5AA'}}>
           <span><strong>{timesheets.filter(ts => ts.status === 'APPROVED').length}</strong> approved</span>
+        </div>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: '0.875rem', color: '#084298' }}>
+          <span><strong>{timesheets.filter(ts => ts.status === 'PAID').length}</strong> paid</span>
         </div>
       </div>
 

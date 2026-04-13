@@ -73,7 +73,7 @@ function App() {
   }
 
   if (user.role === 'FINANCE') {
-    return <CalculatePay user={user} onBack={handleLogout} onProfileClick={() => setPage('profile')} />;
+    return <CalculatePay user={user} onLogout={handleLogout} onProfileClick={() => setPage('profile')} />;
   }
 
  

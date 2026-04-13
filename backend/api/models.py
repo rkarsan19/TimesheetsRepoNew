@@ -40,6 +40,7 @@ class User(models.Model):
 class Consultant(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, to_field='userID')
     consultantId = models.AutoField(primary_key=True)
+    daily_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
 
     def __str__(self):
         return self.user.name
@@ -79,6 +80,7 @@ class Timesheet(models.Model):
         ('SUBMITTED', 'Submitted'),
         ('APPROVED', 'Approved'),
         ('REJECTED', 'Rejected'),
+        ('PAID', 'Paid'),
     ]
     timesheetID = models.AutoField(primary_key=True)
     consultant = models.ForeignKey(Consultant, on_delete=models.CASCADE)
@@ -99,6 +101,7 @@ class Timesheet(models.Model):
 class Client(models.Model):
     clientId = models.AutoField(primary_key=True)
     name = models.CharField(max_length=200)
+    daily_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
 
     def __str__(self):
         return self.name
@@ -135,10 +138,12 @@ class TimesheetEntry(models.Model):
 # which project the hours relate to.
 class Assignment(models.Model):
     timesheet = models.ForeignKey(Timesheet, on_delete=models.CASCADE, related_name='assignments')
-    client_name = models.CharField(max_length=200)       # e.g. "Barclays"
-    assignment_name = models.CharField(max_length=200)   # e.g. "Digital Transformation Project"
-    week_started = models.DateField()                    # Start of the assignment period
-    week_ended = models.DateField()                      # End of the assignment period
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments')
+    client_name = models.CharField(max_length=200)       # kept for display / legacy
+    assignment_name = models.CharField(max_length=200)
+    week_started = models.DateField()
+    week_ended = models.DateField()
+    daily_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
 
     def __str__(self):
         return f"{self.assignment_name} - {self.client_name}"
