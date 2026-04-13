@@ -209,8 +209,18 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           position: "relative",
         }}
       >
-        <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
-          <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userName}</span>
+        <div className="position-absolute d-flex align-items-center gap-2" style={{top: "20px", right: "30px"}}>
+          <button
+              onClick={onLogout}
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.7)',
+                color: '#fff', borderRadius: '6px', padding: '4px 12px',
+                fontSize: '0.85rem', cursor: 'pointer',
+              }}
+          >
+            Sign out
+          </button>
+          <span style={{fontSize: "0.9rem", opacity: 0.9}}>{userName}</span>
           <div onClick={onProfileClick} style={{
             width: "42px", height: "42px", borderRadius: "50%",
             backgroundColor: "rgba(255,255,255,0.25)",
@@ -223,13 +233,13 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </div>
         </div>
 
-        <h1 className="fw-bold mb-0" style={{ fontSize: "2.2rem", marginTop: "10px" }}>
+        <h1 className="fw-bold mb-0" style={{fontSize: "2.2rem", marginTop: "10px"}}>
           Welcome, {userName}
         </h1>
       </div>
 
       {/* Stats row above card */}
-      <div className="mx-4 d-flex gap-3 align-items-center" style={{ marginTop: "20px", marginBottom: "12px" }}>
+      <div className="mx-4 d-flex gap-3 align-items-center" style={{marginTop: "20px", marginBottom: "12px" }}>
         <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: "0.875rem", color: "#00789A" }}>
           <FontAwesomeIcon icon={faClock} />
           <span><strong>{submitted}</strong> awaiting review</span>
