@@ -135,16 +135,6 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
           }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{top: '20px', right: '30px'}}>
-          <button
-              onClick={onLogout}
-              style={{
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.7)',
-                color: '#fff', borderRadius: '6px', padding: '4px 12px',
-                fontSize: '0.85rem', cursor: 'pointer',
-              }}
-          >
-            Sign out
-          </button>
           <span style={{fontSize: '0.9rem', opacity: 0.9}}>{consultantName}</span>
           <div onClick={onProfileClick} style={{
             width: '42px', height: '42px', borderRadius: '50%',

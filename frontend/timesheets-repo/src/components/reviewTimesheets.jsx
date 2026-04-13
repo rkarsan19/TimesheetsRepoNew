@@ -218,16 +218,6 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
         }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{top: "20px", right: "30px"}}>
-          <button
-              onClick={onLogout}
-              style={{
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.7)',
-                color: '#fff', borderRadius: '6px', padding: '4px 12px',
-                fontSize: '0.85rem', cursor: 'pointer',
-              }}
-          >
-            Sign out
-          </button>
           <span style={{fontSize: "0.9rem", opacity: 0.9}}>{userName}</span>
           <div onClick={onProfileClick} style={{
             width: "42px", height: "42px", borderRadius: "50%",
@@ -274,7 +264,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
               value={searchTerm}
               className="form-control border-0 text-white ps-5"
               placeholder="Search consultant or ID"
-              style={{ backgroundColor: "#3a3a3a", width: "220px", borderRadius: "6px" }}
+              style={{ backgroundColor: "#3a3a3a", width: "230px", borderRadius: "6px" }}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
@@ -370,7 +360,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                   <td>
                     <span
                       className={statusBadgeClass(ts.status)}
-                      style={ts.status === "LATE" ? { backgroundColor: "#ffd798", color: "#e65100" } : {}}
+                      style={ts.status === "LATE" ? { backgroundColor: "#ffdbbb", color: "#e65100" } : {}}
                     >
                       {statusLabel(ts.status)}
                     </span>
