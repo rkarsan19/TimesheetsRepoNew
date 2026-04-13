@@ -194,3 +194,27 @@ class PaySlip(models.Model):
 
     def __str__(self):
         return f"PaySlip {self.payslipID} - {self.consultant.user.name}"
+
+
+# ── 10. NOTIFICATION ──────────────────────────────────────────
+# Created automatically when a timesheet changes status.
+# Displayed to the relevant user via the notification bell on their dashboard.
+class Notification(models.Model):
+    TYPES = [
+        ('SUBMITTED', 'Submitted'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('PAID', 'Paid'),
+    ]
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    notif_type = models.CharField(max_length=20, choices=TYPES)
+    timesheet = models.ForeignKey(Timesheet, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Notification({self.recipient.name}, {self.notif_type}, read={self.is_read})"

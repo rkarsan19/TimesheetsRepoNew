@@ -5,6 +5,7 @@ import Loader from "./loadingAni";
 import TimesheetDetail from "./TimesheetDetail";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye } from "@fortawesome/free-solid-svg-icons";
+import NotificationBell from "./NotificationBell";
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -44,7 +45,7 @@ const getSunday = (mondayStr) => {
   return sunday.toISOString().split('T')[0];
 };
 
-const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
+const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick}) => {
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -111,7 +112,7 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
     if (!weekCommencing) return '—';
     const monday = new Date(weekCommencing + 'T00:00:00');
     const friday = new Date(monday);
-    friday.setDate(monday.getDate() + 4);
+    friday.setDate(monday.getDate() + 6);
     return friday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
@@ -135,6 +136,7 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
           }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{top: '20px', right: '30px'}}>
+          <NotificationBell userId={userId} />
           <span style={{fontSize: '0.9rem', opacity: 0.9}}>{consultantName}</span>
           <div onClick={onProfileClick} style={{
             width: '42px', height: '42px', borderRadius: '50%',

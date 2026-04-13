@@ -8,6 +8,7 @@ import {
   faFileInvoiceDollar, faUsers, faCheckCircle, faDownload,
   faExclamationTriangle, faClockRotateLeft,
 } from "@fortawesome/free-solid-svg-icons";
+import NotificationBell from "./NotificationBell";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -586,6 +587,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
         style={{ background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)", position: "relative" }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
+          <NotificationBell userId={user?.userID} />
           <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userName}</span>
           <div onClick={onProfileClick} style={{
             width: "42px", height: "42px", borderRadius: "50%",

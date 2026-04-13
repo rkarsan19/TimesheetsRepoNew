@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Consultant, LineManager, Administrator, Timesheet, TimesheetEntry, PaySlip, Assignment, Client
+from .models import User, Consultant, LineManager, Administrator, Timesheet, TimesheetEntry, PaySlip, Assignment, Client, Notification
 
 # ──────────────────────────────────────────────────────────────
 # serializers.py
@@ -112,4 +112,12 @@ class PaySlipSerializer(serializers.ModelSerializer):
 class AssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assignment
+        fields = '__all__'
+
+
+# Converts Notification instances to/from JSON.
+# is_read lets the frontend track which notifications have been seen.
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
         fields = '__all__'

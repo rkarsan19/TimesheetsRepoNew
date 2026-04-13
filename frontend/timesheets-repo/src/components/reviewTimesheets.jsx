@@ -7,6 +7,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faClock, faChartPie, faSearch, faFilter, faTimes, faCheck, faXmark, faEye,
 } from "@fortawesome/free-solid-svg-icons";
+import NotificationBell from "./NotificationBell";
 
 const API_BASE = "http://localhost:8000/api";
 
@@ -218,6 +219,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
         }}
       >
         <div className="position-absolute d-flex align-items-center gap-2" style={{top: "20px", right: "30px"}}>
+          <NotificationBell userId={user?.userID} />
           <span style={{fontSize: "0.9rem", opacity: 0.9}}>{userName}</span>
           <div onClick={onProfileClick} style={{
             width: "42px", height: "42px", borderRadius: "50%",
@@ -336,7 +338,6 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
         <table className="table table-hover align-middle mb-0">
           <thead className="text-secondary" style={{ fontSize: "0.9rem" }}>
             <tr>
-              <th>ID</th>
               <th>Consultant</th>
               <th>Week Commencing</th>
               <th>Week Ending</th>
@@ -353,7 +354,6 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
             ) : (
               filteredTimesheets.map((ts) => (
                 <tr key={ts.timesheetID}>
-                  <td>{ts.timesheetID}</td>
                   <td>{ts.consultant_name ?? "—"}</td>
                   <td>{formatDate(ts.weekCommencing)}</td>
                   <td>{formatDate(ts.weekEnding)}</td>

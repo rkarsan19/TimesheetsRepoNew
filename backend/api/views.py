@@ -5,12 +5,38 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import date
 from supabase import create_client
-from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings, Client
+from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings, Client, Notification
 from .serializers import (
     UserSerializer, ConsultantSerializer, ConsultantDetailSerializer,
     LineManagerSerializer, TimesheetSerializer, TimesheetDetailSerializer,
-    TimesheetEntrySerializer, PaySlipSerializer, AssignmentSerializer, ClientSerializer
+    TimesheetEntrySerializer, PaySlipSerializer, AssignmentSerializer, ClientSerializer,
+    NotificationSerializer,
 )
+
+
+# ── NOTIFICATION HELPERS ──────────────────────────────────────
+
+def _fmt_date(d):
+    """Format a date as '6 April 2026' — matches the en-GB long format used
+    across the frontend (day: numeric, month: long, year: numeric)."""
+    if not d:
+        return '—'
+    return d.strftime('%-d %B %Y')
+
+
+# Creates a single Notification row. Call this from any view that
+# changes a timesheet status. Silently swallows errors so a
+# notification failure never breaks the main response.
+def _notify(recipient_user, notif_type, timesheet, message):
+    try:
+        Notification.objects.create(
+            recipient=recipient_user,
+            notif_type=notif_type,
+            timesheet=timesheet,
+            message=message,
+        )
+    except Exception:
+        pass
 
 # ──────────────────────────────────────────────────────────────
 # views.py
@@ -247,6 +273,17 @@ def submitTimesheet(request, pk):
     if timesheet.weekEnding <= timesheet.submitDate:
         timesheet.status = 'LATE'
     timesheet.save()
+
+    # Notify the assigned line manager; fall back to all active line managers.
+    consultant_name = timesheet.consultant.user.name
+    week = _fmt_date(timesheet.weekCommencing)
+    msg = f"{consultant_name} submitted a timesheet for the week of {week}."
+    if timesheet.lineManager:
+        _notify(timesheet.lineManager.user, 'SUBMITTED', timesheet, msg)
+    else:
+        for lm in LineManager.objects.select_related('user').filter(user__isActive=True):
+            _notify(lm.user, 'SUBMITTED', timesheet, msg)
+
     serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
@@ -308,6 +345,16 @@ def approveTimesheet(request, pk):
         return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'APPROVED'
     timesheet.save()
+
+    week = _fmt_date(timesheet.weekCommencing)
+    # Notify the consultant
+    _notify(timesheet.consultant.user, 'APPROVED', timesheet,
+            f"Your timesheet for the week of {week} has been approved.")
+    # Notify all Finance users — it's ready for payment
+    for fu in User.objects.filter(role='FINANCE', isActive=True):
+        _notify(fu, 'APPROVED', timesheet,
+                f"{timesheet.consultant.user.name}'s timesheet for the week of {week} is approved and ready for payment.")
+
     serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
@@ -322,8 +369,15 @@ def rejectTimesheet(request, pk):
     except Timesheet.DoesNotExist:
         return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'REJECTED'
-    timesheet.comments = request.data.get('comments', '')  # Rejection reason from the line manager
+    timesheet.comments = request.data.get('comments', '')
     timesheet.save()
+
+    week = _fmt_date(timesheet.weekCommencing)
+    msg = f"Your timesheet for the week of {week} has been rejected."
+    if timesheet.comments:
+        msg += f" Reason: {timesheet.comments}"
+    _notify(timesheet.consultant.user, 'REJECTED', timesheet, msg)
+
     serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
 
@@ -594,8 +648,46 @@ def markTimesheetAsPaid(request, pk):
         return Response({'error': 'Timesheet not found'}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'PAID'
     timesheet.save()
+
+    week = _fmt_date(timesheet.weekCommencing)
+    _notify(timesheet.consultant.user, 'PAID', timesheet,
+            f"Your timesheet for the week of {week} has been paid.")
+
     serializer = TimesheetSerializer(timesheet)
     return Response(serializer.data)
+
+
+# ── NOTIFICATIONS ─────────────────────────────────────────────
+
+# Returns up to 50 most recent notifications for a user, unread first.
+@api_view(['GET'])
+def getNotifications(request, userId):
+    notifications = (
+        Notification.objects
+        .filter(recipient__userID=userId)
+        .order_by('is_read', '-created_at')[:50]
+    )
+    serializer = NotificationSerializer(notifications, many=True)
+    return Response(serializer.data)
+
+
+# Marks a single notification as read.
+@api_view(['PUT'])
+def markNotificationRead(request, notifId):
+    try:
+        notif = Notification.objects.get(id=notifId)
+    except Notification.DoesNotExist:
+        return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+    notif.is_read = True
+    notif.save()
+    return Response({'status': 'ok'})
+
+
+# Marks every unread notification for a user as read in one query.
+@api_view(['PUT'])
+def markAllNotificationsRead(request, userId):
+    Notification.objects.filter(recipient__userID=userId, is_read=False).update(is_read=True)
+    return Response({'status': 'ok'})
 
 
 # ── ADMIN ─────────────────────────────────────────────────────

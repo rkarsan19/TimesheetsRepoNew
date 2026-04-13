@@ -80,7 +80,7 @@ function App() {
 
   if (user.role === 'CONSULTANT') {
     const storedUser = JSON.parse(localStorage.getItem('user')); //had to add this as there were issues with timesheet data not loading when pressing back button
-    return <TimesheetList consultantId={user.consultantId || storedUser?.consultantId} onLogout={handleLogout} onProfileClick={() => setPage('profile')} />;
+    return <TimesheetList consultantId={user.consultantId || storedUser?.consultantId} userId={user.userID} onLogout={handleLogout} onProfileClick={() => setPage('profile')} />;
   }
 
   if (user.role === 'LINE_MANAGER') {
