@@ -105,6 +105,14 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
     }
   };
 
+  const getDeadline = (weekCommencing) => {
+    if (!weekCommencing) return '—';
+    const monday = new Date(weekCommencing + 'T00:00:00');
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+    return friday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   const initials = consultantName
     ? consultantName.split(' ').map(n => n[0]).join('').toUpperCase()
     : '?';
@@ -118,14 +126,24 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
 
       {/* Header */}
       <div
-        className="text-white px-5 pt-4 pb-4"
-        style={{
-          background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)',
-          position: 'relative',
-        }}
+          className="text-white px-5 pt-4 pb-4"
+          style={{
+            background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)',
+            position: 'relative',
+          }}
       >
-        <div className="position-absolute d-flex align-items-center gap-2" style={{ top: '20px', right: '30px' }}>
-          <span style={{ fontSize: '0.9rem', opacity: 0.9 }}>{consultantName}</span>
+        <div className="position-absolute d-flex align-items-center gap-2" style={{top: '20px', right: '30px'}}>
+          <button
+              onClick={onLogout}
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.7)',
+                color: '#fff', borderRadius: '6px', padding: '4px 12px',
+                fontSize: '0.85rem', cursor: 'pointer',
+              }}
+          >
+            Sign out
+          </button>
+          <span style={{fontSize: '0.9rem', opacity: 0.9}}>{consultantName}</span>
           <div onClick={onProfileClick} style={{
             width: '42px', height: '42px', borderRadius: '50%',
             backgroundColor: 'rgba(255,255,255,0.25)',
@@ -138,23 +156,25 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
           </div>
         </div>
 
-        <h1 className="fw-bold mb-0" style={{ fontSize: '2.2rem', marginTop: '10px' }}>
+        <h1 className="fw-bold mb-0" style={{fontSize: '2.2rem', marginTop: '10px'}}>
           Welcome, {consultantName}
         </h1>
       </div>
 
       {/* Stats row above card */}
-      <div className="mx-4 d-flex gap-3 align-items-center" style={{ marginTop: '20px', marginBottom: '12px' }}>
-        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: '0.875rem', color: '#00789A' }}>
+      <div className="mx-4 d-flex gap-3 align-items-center" style={{marginTop: '20px', marginBottom: '12px'}}>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm"
+             style={{fontSize: '0.875rem', color: '#00789A'}}>
           <span><strong>{timesheets.filter(ts => ts.status === 'SUBMITTED').length}</strong> awaiting review</span>
         </div>
-        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: '0.875rem', color: '#2DB5AA' }}>
+        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm"
+             style={{fontSize: '0.875rem', color: '#2DB5AA'}}>
           <span><strong>{timesheets.filter(ts => ts.status === 'APPROVED').length}</strong> approved</span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="mx-4" style={{ marginTop: '0' }}>
+      <div className="mx-4" style={{marginTop: '0'}}>
         <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
 
           {/* Title row */}
@@ -174,35 +194,45 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
           {!loading && !error && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
-                <tr style={{ color: '#aaa', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee' }}>Week Commencing</th>
-                  <th style={{ textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee' }}>Week Ending</th>
-                  <th style={{ textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee' }}>Status</th>
-                  <th style={{ textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee' }}>Submitted</th>
-                  <th style={{ borderBottom: '1px solid #eee' }}></th>
-                </tr>
+              <tr style={{color: '#aaa', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>
+                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Week Commencing</th>
+                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Week Ending</th>
+                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Status</th>
+                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Submission Deadline</th>
+                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Submitted</th>
+                <th style={{borderBottom: '1px solid #eee'}}></th>
+              </tr>
               </thead>
               <tbody>
-                {timesheets.length === 0 ? (
+              {timesheets.length === 0 ? (
                   <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#aaa' }}>No timesheets yet.</td></tr>
                 ) : (
                   timesheets.map(ts => (
-                    <tr key={ts.timesheetID} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={{ padding: '14px 0' }}>{formatDate(ts.weekCommencing)}</td>
-                      <td style={{ padding: '14px 0' }}>{formatDate(ts.weekEnding)}</td>
-                      <td style={{ padding: '14px 0' }}><StatusBadge status={ts.status} /></td>
-                      <td style={{ padding: '14px 0', color: '#888' }}>{formatDate(ts.submitDate)}</td>
-                      <td style={{ padding: '14px 0', textAlign: 'right' }}>
-                        <button
-                          onClick={() => setSelectedId(ts.timesheetID)}
-                          style={{ background: 'none', border: '1px solid #ddd', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '0.83rem', color: '#555' }}
-                        >
-                          {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit' : (
-                            <><FontAwesomeIcon icon={faEye} className="me-1" />View</>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
+                      <tr key={ts.timesheetID} style={{borderBottom: '1px solid #f5f5f5'}}>
+                        <td style={{padding: '14px 0'}}>{formatDate(ts.weekCommencing)}</td>
+                        <td style={{padding: '14px 0'}}>{formatDate(ts.weekEnding)}</td>
+                        <td style={{padding: '14px 0'}}><StatusBadge status={ts.status}/></td>
+                        <td style={{padding: '14px 0', color: '#888'}}>{getDeadline(ts.weekCommencing)}</td>
+                        <td style={{padding: '14px 0', color: '#888'}}>{formatDate(ts.submitDate)}</td>
+                        <td style={{padding: '14px 0', textAlign: 'right'}}>
+                          <button
+                              onClick={() => setSelectedId(ts.timesheetID)}
+                              style={{
+                                background: 'none',
+                                border: '1px solid #ddd',
+                                borderRadius: '6px',
+                                padding: '4px 14px',
+                                cursor: 'pointer',
+                                fontSize: '0.83rem',
+                                color: '#555'
+                              }}
+                          >
+                            {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit' : (
+                                <><FontAwesomeIcon icon={faEye} className="me-1"/>View</>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
                   ))
                 )}
               </tbody>
