@@ -21,7 +21,7 @@ def _fmt_date(d):
     across the frontend (day: numeric, month: long, year: numeric)."""
     if not d:
         return '—'
-    return d.strftime('%-d %B %Y')
+    return f"{d.day} {d.strftime('%B %Y')}"
 
 
 # Creates a single Notification row. Call this from any view that
