@@ -6,6 +6,8 @@ import {
   faUserTie, faClipboardCheck, faCalculator, faShieldHalved,
 } from "@fortawesome/free-solid-svg-icons";
 import loginBg from "../assets/login-bg.svg";
+import logo from "../assets/logo.svg"
+
 
 const Login = ({ onLogin, onForgotPassword }) => {
   const [username, setUsername] = useState("");
@@ -81,11 +83,10 @@ const Login = ({ onLogin, onForgotPassword }) => {
             width: isMobile ? 36 : 40,
             height: isMobile ? 36 : 40,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #00789A, #2DB5AA)",
             display: "flex", alignItems: "center", justifyContent: "center",
             color: "#fff", fontSize: isMobile ? "0.9rem" : "1rem",
           }}>
-            <FontAwesomeIcon icon={faClock} />
+            <img src={logo} style={{width: 30, height: 30}}/>
           </div>
           <span style={{ fontWeight: 700, fontSize: isMobile ? "1rem" : "1.2rem", color: "#1a202c" }}>TimeDime</span>
         </div>
@@ -216,7 +217,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
             display: "flex", alignItems: "center", gap: "6px",
             color: "rgba(255,255,255,0.8)", fontSize: "0.85rem",
           }}>
-            <FontAwesomeIcon icon={faClock} style={{ fontSize: "0.9rem" }} />
+            <img src={logo} style={{width: 30, height: 30}}/>
             <span>TimeDime</span>
           </div>
 

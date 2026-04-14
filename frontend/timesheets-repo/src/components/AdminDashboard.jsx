@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import logo from "../assets/logo.svg"
 import { 
   faKey, 
   faUserSlash, 
@@ -198,8 +199,8 @@ function AdminDashboard({ user, onProfileClick }) {
 
         {/* Logo / Brand */}
         <div className="d-flex align-items-center gap-2 text-white mb-5" style={{ marginTop: isMobile ? '8px' : 0 }}>
-          <div className="rounded-circle border border-white border-2 d-flex align-items-center justify-content-center" style={{ width: 46, height: 46 }}>
-            <FontAwesomeIcon icon={faClock} />
+          <div>
+            <img src={logo} style={{width: 46, height: 46}}/>
           </div>
           <div>
             <div className="fw-bold lh-1" style={{ fontSize: '1.3rem' }}>TimeDime</div>
