@@ -175,8 +175,8 @@ function UserProfile({user, setuser, onBack, onLogout}) {
               fontSize: isMobile ? '0.85rem' : '0.9rem',
               fontWeight: '500',
             }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,1)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(192,57,43,0.75)'}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(164, 238, 232, 1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(164,238,232,0.75)'}
           >
             <FontAwesomeIcon icon={faRightFromBracket} />
             {!isMobile && 'Sign Out'}
