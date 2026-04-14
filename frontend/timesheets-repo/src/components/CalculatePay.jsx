@@ -130,13 +130,12 @@ const styles = {
     fontFamily: "'Segoe UI', system-ui, sans-serif",
   },
   header: {
-    backgroundColor: C.dark,
+    background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)",
     padding: "0 2rem",
     height: "64px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottom: `3px solid ${C.bright}`,
   },
   headerTitle: {
     fontSize: "1.25rem",
@@ -453,6 +452,9 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const [histEntries, setHistEntries] = useState({});
   const [histRates, setHistRates] = useState({});
   const [histLoading, setHistLoading] = useState(false);
+  const [paySnapshot, setPaySnapshot] = useState(null); // frozen copy of sheets/entries/rates at pay time
+  const [histMonthFilter, setHistMonthFilter] = useState("all");
+  const [histSort, setHistSort] = useState("desc"); // "desc" = newest first, "asc" = oldest first
 
   // Initial data load
   useEffect(() => {
@@ -564,6 +566,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     setEntriesMap({});
     setRatesMap({});
     setPayDone(false);
+    setPaySnapshot(null);
+    setHistMonthFilter("all");
     if (c) { fetchEntries(c, chosenMonth); fetchHistory(c); }
   };
 
@@ -572,6 +576,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     setEntriesMap({});
     setRatesMap({});
     setPayDone(false);
+    setPaySnapshot(null);
     if (chosenConsultant) fetchEntries(chosenConsultant, m);
   };
 
@@ -594,6 +599,21 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     const r = rowCalc(ts);
     return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, total: acc.total + r.total, missingRate: acc.missingRate || r.missingRate };
   }, { stdHrs: 0, otHrs: 0, total: 0, missingRate: false });
+
+  // When payDone, use the frozen snapshot so the modal/PDF still has data
+  const modalSheets = payDone && paySnapshot ? paySnapshot.sheets : visibleSheets;
+  const modalEntries = payDone && paySnapshot ? paySnapshot.entries : entriesMap;
+  const modalRates = payDone && paySnapshot ? paySnapshot.rates : ratesMap;
+  const modalTotals = modalSheets.reduce((acc, ts) => {
+    const entries = modalEntries[ts.timesheetID] || [];
+    const rInfo = modalRates[ts.timesheetID] || {};
+    const fb = parseFloat(chosenConsultant?.daily_rate || 0);
+    const r = entries.reduce((a, e) => {
+      const p = computeEntryPay(e, clientMap, rInfo, fb);
+      return { stdHrs: a.stdHrs + p.stdHrs, otHrs: a.otHrs + p.otHrs, total: a.total + p.total };
+    }, { stdHrs: 0, otHrs: 0, total: 0 });
+    return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, total: acc.total + r.total };
+  }, { stdHrs: 0, otHrs: 0, total: 0 });
 
   const badRateSheets = visibleSheets.filter((ts) => {
     const ri = ratesMap[ts.timesheetID];
@@ -622,6 +642,12 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   // Actions
   const handleGeneratePayslip = async () => {
     setProcessing(true);
+    // snapshot before API wipes APPROVED status
+    setPaySnapshot({
+      sheets: [...visibleSheets],
+      entries: { ...entriesMap },
+      rates: { ...ratesMap },
+    });
     try {
       await Promise.all(
         visibleSheets.map((ts) =>
@@ -646,46 +672,259 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const downloadPDF = () => {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
-    doc.setFillColor(0, 95, 122);
-    doc.rect(0, 0, pageW, 26, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text("TimeDime — Payslip", 14, 10);
+    const pageH = doc.internal.pageSize.getHeight();
+    const teal = [0, 95, 122];
+    const tealLight = [0, 168, 150];
+    const white = [255, 255, 255];
+    const dark = [30, 30, 30];
+    const grey = [120, 120, 120];
+    const rowAlt = [245, 250, 251];
+
+    // ── Header bar ──
+    doc.setFillColor(...teal);
+    doc.rect(0, 0, pageW, 30, "F");
+
+    doc.setTextColor(...white);
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("TimeDime", 14, 13);
+
     doc.setFontSize(9);
-    doc.text(`${chosenConsultant.name} · ${monthLabel(chosenMonth)}`, 14, 19);
-    doc.setTextColor(40, 40, 40);
-    let y = 36;
-    visibleSheets.forEach((ts) => {
-      const entries = entriesMap[ts.timesheetID] || [];
-      const rInfo = ratesMap[ts.timesheetID] || {};
+    doc.setFont("helvetica", "normal");
+    doc.text("Payslip", 14, 22);
+
+    // ── Consultant info block ──
+    doc.setTextColor(...dark);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(chosenConsultant.name, 14, 44);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...grey);
+    doc.text(`Period: ${monthLabel(chosenMonth)}`, 14, 51);
+    doc.text(`Generated: ${new Date().toLocaleDateString("en-GB")}`, 14, 57);
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(160, 160, 160);
+    doc.text(
+      "Standard pay = (Daily Rate ÷ 8) × Std Hours  |  OT pay = (Daily Rate ÷ 8 × 1.5) × OT Hours",
+      14, 64
+    );
+
+    // ── Divider ──
+    doc.setDrawColor(220, 230, 232);
+    doc.setLineWidth(0.4);
+    doc.line(14, 67, pageW - 14, 67);
+
+    let y = 73;
+
+    // grand totals accumulator
+    let grandStd = 0, grandOT = 0, grandTotal = 0;
+
+    modalSheets.forEach((ts) => {
+      const entries = modalEntries[ts.timesheetID] || [];
+      const rInfo = modalRates[ts.timesheetID] || {};
       const breakdown = buildBreakdown(entries, clientMap, rInfo, chosenConsultant.daily_rate);
+
+      // Week heading
       doc.setFontSize(10);
-      doc.setTextColor(0, 95, 122);
-      doc.text(`Week commencing ${fmtDate(ts.weekCommencing)}`, 14, y);
-      y += 4;
-      doc.setTextColor(40, 40, 40);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...teal);
+      const weekEnd = fmtDate(ts.weekEnding);
+      doc.text(`Week: ${fmtDate(ts.weekCommencing)} – ${weekEnd}`, 14, y);
+      y += 5;
+
+      // Table
       autoTable(doc, {
         startY: y,
-        head: [["Client", "Daily Rate", "Std Hrs", "OT Hrs", "Total"]],
-        body: breakdown.map((b) => [b.label, fmtGBP(b.dailyRate), b.stdHrs + "h", b.otHrs + "h", fmtGBP(b.total)]),
-        theme: "striped",
-        headStyles: { fillColor: [0, 168, 150] },
+        margin: { left: 14, right: 14 },
+        head: [["Client", "Daily Rate", "Std Hrs", "OT Hrs", "Std Pay", "OT Pay", "Total Pay"]],
+        body: breakdown.map((b) => [
+          b.label,
+          fmtGBP(b.dailyRate),
+          b.stdHrs.toFixed(1) + "h",
+          b.otHrs.toFixed(1) + "h",
+          fmtGBP(b.stdPay),
+          fmtGBP(b.otPay),
+          fmtGBP(b.total),
+        ]),
+        headStyles: {
+          fillColor: tealLight,
+          textColor: white,
+          fontStyle: "bold",
+          fontSize: 8,
+          cellPadding: 4,
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: dark,
+          cellPadding: 3.5,
+        },
+        alternateRowStyles: { fillColor: rowAlt },
+        columnStyles: {
+          0: { cellWidth: "auto" },
+          1: { halign: "right" },
+          2: { halign: "right" },
+          3: { halign: "right" },
+          4: { halign: "right" },
+          5: { halign: "right" },
+          6: { halign: "right", fontStyle: "bold" },
+        },
+        tableLineColor: [220, 230, 232],
+        tableLineWidth: 0.3,
       });
+
       y = doc.lastAutoTable.finalY + 10;
+
+      breakdown.forEach((b) => {
+        grandStd += b.stdHrs;
+        grandOT += b.otHrs;
+        grandTotal += b.total;
+      });
     });
-    doc.save(`payslip_${chosenConsultant.name.replace(/\s+/g, "_")}.pdf`);
+
+    // ── Grand total row ──
+    doc.setFillColor(...teal);
+    doc.roundedRect(14, y, pageW - 28, 12, 2, 2, "F");
+    doc.setTextColor(...white);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL", 20, y + 8);
+    doc.text(`${grandStd.toFixed(1)}h`, 80, y + 8, { align: "right" });
+    doc.text(`${grandOT.toFixed(1)}h`, 110, y + 8, { align: "right" });
+    doc.text(fmtGBP(grandTotal), pageW - 20, y + 8, { align: "right" });
+
+    // ── Footer ──
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(180, 180, 180);
+    doc.text(
+      "This payslip was generated by TimeDime. Please retain for your records.",
+      pageW / 2,
+      pageH - 8,
+      { align: "center" }
+    );
+
+    doc.save(`payslip_${chosenConsultant.name.replace(/\s+/g, "_")}_${chosenMonth}.pdf`);
   };
 
   const downloadHistPDF = (ts) => {
     const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const teal = [0, 95, 122];
+    const tealLight = [0, 168, 150];
+    const white = [255, 255, 255];
+    const dark = [30, 30, 30];
+    const grey = [120, 120, 120];
+    const rowAlt = [245, 250, 251];
+
+    const entries = histEntries[ts.timesheetID] || [];
+    const rInfo = histRates[ts.timesheetID] || {};
+    const breakdown = buildBreakdown(entries, clientMap, rInfo, chosenConsultant.daily_rate);
     const r = histRowCalc(ts);
-    doc.setFontSize(14);
-    doc.text(`Payslip — ${chosenConsultant.name}`, 14, 20);
+
+    // ── Header bar ──
+    doc.setFillColor(...teal);
+    doc.rect(0, 0, pageW, 30, "F");
+    doc.setTextColor(...white);
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("TimeDime", 14, 13);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("Payslip", 14, 22);
+
+    // ── Consultant info ──
+    doc.setTextColor(...dark);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(chosenConsultant.name, 14, 44);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...grey);
+    doc.text(`Week: ${fmtDate(ts.weekCommencing)} – ${fmtDate(ts.weekEnding)}`, 14, 51);
+    doc.text(`Generated: ${new Date().toLocaleDateString("en-GB")}`, 14, 57);
+    doc.setFontSize(7.5);
+    doc.setTextColor(160, 160, 160);
+    doc.text(
+      "Standard pay = (Daily Rate ÷ 8) × Std Hours  |  OT pay = (Daily Rate ÷ 8 × 1.5) × OT Hours",
+      14, 64
+    );
+
+    // ── Divider ──
+    doc.setDrawColor(220, 230, 232);
+    doc.setLineWidth(0.4);
+    doc.line(14, 67, pageW - 14, 67);
+
+    let y = 73;
+
+    // ── Week heading ──
     doc.setFontSize(10);
-    doc.text(`Week: ${fmtDate(ts.weekCommencing)}`, 14, 30);
-    doc.text(`Std Hours: ${r.stdHrs}h  OT Hours: ${r.otHrs}h`, 14, 38);
-    doc.text(`Total Pay: ${fmtGBP(r.total)}`, 14, 46);
-    doc.save(`payslip_hist_${ts.timesheetID}.pdf`);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...teal);
+    doc.text(`Week: ${fmtDate(ts.weekCommencing)} – ${fmtDate(ts.weekEnding)}`, 14, y);
+    y += 5;
+
+    // ── Table ──
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 14, right: 14 },
+      head: [["Client", "Daily Rate", "Std Hrs", "OT Hrs", "Std Pay", "OT Pay", "Total Pay"]],
+      body: breakdown.map((b) => [
+        b.label,
+        fmtGBP(b.dailyRate),
+        b.stdHrs.toFixed(1) + "h",
+        b.otHrs.toFixed(1) + "h",
+        fmtGBP(b.stdPay),
+        fmtGBP(b.otPay),
+        fmtGBP(b.total),
+      ]),
+      headStyles: {
+        fillColor: tealLight,
+        textColor: white,
+        fontStyle: "bold",
+        fontSize: 8,
+        cellPadding: 4,
+      },
+      bodyStyles: { fontSize: 8, textColor: dark, cellPadding: 3.5 },
+      alternateRowStyles: { fillColor: rowAlt },
+      columnStyles: {
+        1: { halign: "right" },
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+        6: { halign: "right", fontStyle: "bold" },
+      },
+      tableLineColor: [220, 230, 232],
+      tableLineWidth: 0.3,
+    });
+
+    y = doc.lastAutoTable.finalY + 10;
+
+    // ── Total bar ──
+    doc.setFillColor(...teal);
+    doc.roundedRect(14, y, pageW - 28, 12, 2, 2, "F");
+    doc.setTextColor(...white);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL", 20, y + 8);
+    doc.text(`${r.stdHrs.toFixed(1)}h`, 80, y + 8, { align: "right" });
+    doc.text(`${r.otHrs.toFixed(1)}h`, 110, y + 8, { align: "right" });
+    doc.text(fmtGBP(r.total), pageW - 20, y + 8, { align: "right" });
+
+    // ── Footer ──
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(180, 180, 180);
+    doc.text(
+      "This payslip was generated by TimeDime. Please retain for your records.",
+      pageW / 2, pageH - 8, { align: "center" }
+    );
+
+    doc.save(`payslip_${chosenConsultant.name.replace(/\s+/g, "_")}_week${ts.timesheetID}.pdf`);
   };
 
   const userLabel = user?.name || "Finance";
@@ -703,13 +942,26 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     <div style={styles.page}>
 
       {/* ── Header ── */}
-      <div style={styles.header}>
-        <h1 style={styles.headerTitle}>Welcome, {userLabel}</h1>
-        <div style={styles.headerRight}>
+      <div
+        className="text-white px-5 pt-4 pb-4"
+        style={{ background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)", position: "relative" }}
+      >
+        <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
           <NotificationBell userId={user?.userID} />
-          <span style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.75)" }}>{userLabel}</span>
-          <div style={styles.avatar} onClick={onProfileClick}>{initials}</div>
+          <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userLabel}</span>
+          <div onClick={onProfileClick} style={{
+            width: "42px", height: "42px", borderRadius: "50%",
+            backgroundColor: "rgba(255,255,255,0.25)",
+            border: "2px solid rgba(255,255,255,0.6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: "700", fontSize: "1rem", cursor: "pointer",
+          }}>
+            {initials}
+          </div>
         </div>
+        <h1 className="fw-bold mb-0" style={{ fontSize: "2.2rem", marginTop: "10px" }}>
+          Welcome, {userLabel}
+        </h1>
       </div>
 
       {/* ── Stat cards ── */}
@@ -924,34 +1176,102 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                 </span>
               )}
             </div>
+
+            {/* Search + sort controls */}
+            {paidSheets.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}` }}>
+                <select
+                  value={histMonthFilter}
+                  onChange={(e) => setHistMonthFilter(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: `1.5px solid ${C.border}`,
+                    backgroundColor: C.bg,
+                    fontSize: "0.82rem",
+                    color: C.dark,
+                    outline: "none",
+                  }}
+                >
+                  <option value="all">All months</option>
+                  {[...new Set(paidSheets.map((ts) => ts.weekCommencing?.slice(0, 7)))]
+                    .sort((a, b) => b.localeCompare(a))
+                    .map((m) => (
+                      <option key={m} value={m}>{monthLabel(m)}</option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setHistSort(histSort === "desc" ? "asc" : "desc")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: `1.5px solid ${C.border}`,
+                    backgroundColor: "#fff",
+                    color: C.muted,
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {histSort === "desc" ? "↓ Newest first" : "↑ Oldest first"}
+                </button>
+              </div>
+            )}
+
             <div style={styles.historyList}>
               {histLoading ? (
                 <div style={styles.emptyState}><Spinner animation="border" size="sm" style={{ color: C.bright }} /></div>
               ) : paidSheets.length === 0 ? (
                 <div style={styles.emptyState}>No payment history for this consultant.</div>
-              ) : (
-                [...paidSheets]
-                  .sort((a, b) => new Date(b.weekCommencing) - new Date(a.weekCommencing))
-                  .map((ts) => {
-                    const r = histRowCalc(ts);
-                    const ps = payHistory.find((p) => p.timesheet === ts.timesheetID);
-                    return (
-                      <div key={ts.timesheetID} style={styles.histRow}>
-                        <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
-                        <div style={styles.histMeta}>
-                          <span>{r.stdHrs}h std</span>
-                          <span>{r.otHrs}h OT</span>
-                          {ps && <span>Paid {fmtDate(ps.generatedDate)}</span>}
-                        </div>
-                        <div style={styles.histPay}>{fmtGBP(r.total)}</div>
-                        <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
-                          <FontAwesomeIcon icon={faDownload} /> PDF
-                        </button>
+              ) : (() => {
+                const filtered = [...paidSheets]
+                  .filter((ts) => histMonthFilter === "all" || ts.weekCommencing?.startsWith(histMonthFilter))
+                  .sort((a, b) => histSort === "desc"
+                    ? new Date(b.weekCommencing) - new Date(a.weekCommencing)
+                    : new Date(a.weekCommencing) - new Date(b.weekCommencing)
+                  );
+
+                if (filtered.length === 0) return (
+                  <div style={styles.emptyState}>No records for {monthLabel(histMonthFilter)}.</div>
+                );
+
+                return filtered.map((ts) => {
+                  const r = histRowCalc(ts);
+                  const ps = payHistory.find((p) => p.timesheet === ts.timesheetID);
+                  return (
+                    <div key={ts.timesheetID} style={styles.histRow}>
+                      <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
+                      <div style={styles.histMeta}>
+                        <span>{r.stdHrs}h std</span>
+                        <span>{r.otHrs}h OT</span>
+                        {ps && <span>Paid {fmtDate(ps.generatedDate)}</span>}
                       </div>
-                    );
-                  })
-              )}
+                      <div style={styles.histPay}>{fmtGBP(r.total)}</div>
+                      <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
+                        <FontAwesomeIcon icon={faDownload} /> PDF
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
             </div>
+
+            {/* Total paid to date */}
+            {!histLoading && paidSheets.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.85rem 1.25rem", borderTop: `2px solid ${C.border}`, backgroundColor: "#f8fbfc" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 600, color: C.muted }}>
+                  Total paid to date
+                </span>
+                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: C.dark }}>
+                  {fmtGBP(paidSheets.reduce((sum, ts) => sum + histRowCalc(ts).total, 0))}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -972,7 +1292,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                 {[
                   { label: "Consultant", value: chosenConsultant.name },
                   { label: "Period", value: monthLabel(chosenMonth) },
-                  { label: "Total Pay", value: fmtGBP(grandTotals.total) },
+                  { label: "Total Pay", value: fmtGBP(modalTotals.total) },
                 ].map((m) => (
                   <div key={m.label} style={{ flex: 1, padding: "0.85rem 1rem", backgroundColor: "#fff", borderRadius: "10px", border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: "0.65rem", color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>{m.label}</div>
@@ -981,11 +1301,11 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                 ))}
               </div>
 
-              {visibleSheets.map((ts, i) => {
+              {modalSheets.map((ts, i) => {
                 const breakdown = buildBreakdown(
-                  entriesMap[ts.timesheetID] || [],
+                  modalEntries[ts.timesheetID] || [],
                   clientMap,
-                  ratesMap[ts.timesheetID] || {},
+                  modalRates[ts.timesheetID] || {},
                   chosenConsultant.daily_rate
                 );
                 return (
