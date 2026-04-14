@@ -71,10 +71,9 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
       const row = updated[index];
       const standard = Math.floor(parseFloat(row.hoursWorked)* 10) / 10 || 0;
       const overtime = Math.floor(parseFloat(row.overtime_hours)* 10) / 10 || 0;
-      const total = standard + overtime;
       let err = '';
-      if (total > 24) {
-        err = 'Total hours in a day cannot exceed 24.';
+      if (standard > 8) {
+        err = 'Standard hours cannot exceed 8 (9am–5pm working day).';
       } else if (overtimeLimit !== null && overtime > overtimeLimit) {
         err = `Overtime cannot exceed the ${overtimeLimit}h limit set by your line manager.`;
       }
@@ -90,9 +89,9 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   const getDeadline = () => {
     if (!timesheet?.weekCommencing) return '—';
     const monday = new Date(timesheet.weekCommencing + 'T00:00:00');
-    const friday = new Date(monday);
-    friday.setDate(monday.getDate() + 4);
-    return friday.toLocaleDateString('en-GB', {
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return sunday.toLocaleDateString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
     }) + ' · 17:00';
   };
@@ -210,7 +209,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
                   </td>
                   <td style={{ padding: '10px 12px 10px 0' }}>
                     <input
-                      type="number" min="0" max="24" step="0.5"
+                      type="number" min="0" max="8" step="0.5"
                       value={row.hoursWorked}
                       disabled={!isEditable}
                       onChange={e => handleDayChange(i, 'hoursWorked', e.target.value)}

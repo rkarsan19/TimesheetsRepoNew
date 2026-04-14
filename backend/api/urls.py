@@ -39,6 +39,7 @@ urlpatterns = [
 
     # Clients
     path('clients/', views.clients),
+    path('clients/<str:pk>/rate/', views.updateClientRate),
 
     # Assignments
     path('assignments/create/', views.createAssignment),
@@ -46,6 +47,17 @@ urlpatterns = [
     # Payslips
     path('payslips/', views.getPaySlips),
     path('payslips/calculate/', views.calculatePay),
+    path('payslips/consultant/<str:pk>/', views.getConsultantPaySlips),
+
+    # Finance
+    path('consultants/', views.getConsultantsList),
+    path('consultants/<str:pk>/rate/', views.updateConsultantRate),
+    path('timesheets/<str:pk>/mark-paid/', views.markTimesheetAsPaid),
+
+    # Notifications (specific paths before the generic <userId>/ catch-all)
+    path('notifications/<str:userId>/read-all/', views.markAllNotificationsRead),
+    path('notifications/<str:notifId>/read/', views.markNotificationRead),
+    path('notifications/<str:userId>/', views.getNotifications),
 
     # System settings
     path('settings/overtime-limit/', views.overtimeLimit),

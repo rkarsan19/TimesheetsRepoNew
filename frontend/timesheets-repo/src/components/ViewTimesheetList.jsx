@@ -1,18 +1,21 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Modal, Button, Form, Alert, Spinner } from "react-bootstrap";
+import { Modal, Button, Form, Alert, Spinner, Container } from "react-bootstrap";
 import Loader from "./loadingAni";
 import TimesheetDetail from "./TimesheetDetail";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye } from "@fortawesome/free-solid-svg-icons";
+import NotificationBell from "./NotificationBell";
 
 const API_BASE = 'http://localhost:8000/api';
 
 const STATUS_STYLE = {
-  DRAFT:     { bg: '#fff3cd', color: '#856404' },
-  SUBMITTED: { bg: '#cff4fc', color: '#055160' },
-  APPROVED:  { bg: '#d1e7dd', color: '#0a3622' },
-  REJECTED:  { bg: '#f8d7da', color: '#842029' },
+  DRAFT:     { bg: '#fff3cd', color: '#856404', border: '#ffc107' },
+  SUBMITTED: { bg: '#cff4fc', color: '#055160', border: '#0dcaf0' },
+  APPROVED:  { bg: '#d1e7dd', color: '#0a3622', border: '#2DB5AA' },
+  REJECTED:  { bg: '#f8d7da', color: '#842029', border: '#dc3545' },
+  LATE:      { bg: '#f8d7da', color: '#842029', border: '#dc3545' },
+  PAID:      { bg: '#cfe2ff', color: '#084298', border: '#0d6efd' },
 };
 
 const StatusBadge = ({ status }) => {
@@ -20,37 +23,20 @@ const StatusBadge = ({ status }) => {
   return (
     <span style={{
       background: s.bg, color: s.color,
-      padding: '3px 10px', borderRadius: '12px',
-      fontSize: '0.78rem', fontWeight: 600,
+      padding: '2px 10px', borderRadius: '12px',
+      fontSize: '0.7rem', fontWeight: 600,
+      display: 'inline-block', textTransform: 'uppercase'
     }}>
       {status}
     </span>
   );
 };
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'long', year: 'numeric'
-  });
-};
-
-const getSunday = (mondayStr) => {
-  const monday = new Date(mondayStr + 'T00:00:00');
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return sunday.toISOString().split('T')[0];
-};
-
-const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
+const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [consultantName, setConsultantName] = useState('');
-
   const [selectedId, setSelectedId] = useState(null);
-
-  // New timesheet modal
   const [showModal, setShowModal] = useState(false);
   const [selectedMonday, setSelectedMonday] = useState('');
   const [modalError, setModalError] = useState('');
@@ -64,18 +50,12 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
   }, [consultantId]);
 
   const fetchTimesheets = async () => {
-
-    
     try {
       setLoading(true);
-      const [res] = await Promise.all([
-        axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`),
-        new Promise(resolve => setTimeout(resolve, 800)),
-      ]);
+      const res = await axios.get(`${API_BASE}/timesheets/consultant/${consultantId}/`);
       setTimesheets(res.data);
-      setError(null);
-    } catch {
-      setError('Failed to load timesheets.');
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -83,12 +63,7 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
 
   const handleCreateNew = async () => {
     if (!selectedMonday) { setModalError('Please select a week.'); return; }
-    if (new Date(selectedMonday + 'T00:00:00').getDay() !== 1) {
-      setModalError('Please select a Monday.');
-      return;
-    }
     setCreating(true);
-    setModalError('');
     try {
       await axios.post(`${API_BASE}/timesheets/create/`, {
         consultantId,
@@ -99,178 +74,177 @@ const TimesheetList = ({ consultantId, onLogout, onProfileClick}) => {
       setSelectedMonday('');
       fetchTimesheets();
     } catch (err) {
-      setModalError(err.response?.data?.error || 'Failed to create timesheet.');
+      setModalError(err.response?.data?.error || 'Failed to create.');
     } finally {
       setCreating(false);
     }
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+  };
+
+  const getSunday = (mondayStr) => {
+    const monday = new Date(mondayStr + 'T00:00:00');
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return sunday.toISOString().split('T')[0];
+  };
+
   const getDeadline = (weekCommencing) => {
     if (!weekCommencing) return '—';
     const monday = new Date(weekCommencing + 'T00:00:00');
-    const friday = new Date(monday);
-    friday.setDate(monday.getDate() + 4);
-    return friday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const deadline = new Date(monday);
+    deadline.setDate(monday.getDate() + 6);
+    return deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const initials = consultantName
-    ? consultantName.split(' ').map(n => n[0]).join('').toUpperCase()
-    : '?';
+  const initials = consultantName ? consultantName.split(' ').map(n => n[0]).join('').toUpperCase() : '?';
 
   if (selectedId !== null) {
     return <TimesheetDetail timesheetId={selectedId} onBack={() => { setSelectedId(null); fetchTimesheets(); }} />;
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f0f0', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f7f7' }}>
+      
+      {/* BLUE HEADER BAR */}
+      <div className="text-white px-4 py-4" style={{ background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)' }}>
+        <div className="d-flex justify-content-between align-items-center">
+          <h1 className="fw-bold mb-0" style={{ fontSize: '1.8rem' }}>Welcome, {consultantName}</h1>
+          <div className="d-flex align-items-center gap-3">
+            <NotificationBell userId={userId} />
+            <div onClick={onProfileClick} style={{
+              width: '40px', height: '40px', borderRadius: '50%',
+              backgroundColor: 'rgba(255,255,255,0.25)', border: '2px solid rgba(255,255,255,0.6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', cursor: 'pointer'
+            }}>
+              {initials}
+            </div>
+          </div>
+        </div>
+      </div>
 
-      {/* Header */}
-      <div
-          className="text-white px-5 pt-4 pb-4"
-          style={{
-            background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)',
-            position: 'relative',
-          }}
-      >
-        <div className="position-absolute d-flex align-items-center gap-2" style={{top: '20px', right: '30px'}}>
-          <button
-              onClick={onLogout}
-              style={{
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.7)',
-                color: '#fff', borderRadius: '6px', padding: '4px 12px',
-                fontSize: '0.85rem', cursor: 'pointer',
-              }}
-          >
-            Sign out
-          </button>
-          <span style={{fontSize: '0.9rem', opacity: 0.9}}>{consultantName}</span>
-          <div onClick={onProfileClick} style={{
-            width: '42px', height: '42px', borderRadius: '50%',
-            backgroundColor: 'rgba(255,255,255,0.25)',
-            border: '2px solid rgba(255,255,255,0.6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: '700', fontSize: '1rem',
-            cursor: 'pointer',
-          }}>
-            {initials}
+      <Container fluid className="px-md-5 py-4">
+        
+        {/* STATUS SUMMARY TAGS - Now positioned above the list/card */}
+        <div className="d-none d-md-flex gap-2 mb-3">
+          <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-info">
+            <span className="text-info">3</span> awaiting review
+          </div>
+          <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-success">
+            <span className="text-success">5</span> approved
+          </div>
+          <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-primary">
+            <span className="text-primary">1</span> paid
           </div>
         </div>
 
-        <h1 className="fw-bold mb-0" style={{fontSize: '2.2rem', marginTop: '10px'}}>
-          Welcome, {consultantName}
-        </h1>
-      </div>
+        {loading ? <div className="text-center py-5"><Loader /></div> : (
+          <>
+            {/* DESKTOP VIEW: White Card Layout */}
+            <div className="d-none d-md-block bg-white rounded-4 shadow-sm p-4">
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <h2 className="fw-bold h4 mb-0">Timesheets</h2>
+                <Button 
+                  onClick={() => setShowModal(true)} 
+                  style={{ background: '#00789A', border: 'none', borderRadius: '6px', fontSize: '0.9rem' }}
+                >
+                  + New Timesheet
+                </Button>
+              </div>
 
-      {/* Stats row above card */}
-      <div className="mx-4 d-flex gap-3 align-items-center" style={{marginTop: '20px', marginBottom: '12px'}}>
-        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm"
-             style={{fontSize: '0.875rem', color: '#00789A'}}>
-          <span><strong>{timesheets.filter(ts => ts.status === 'SUBMITTED').length}</strong> awaiting review</span>
-        </div>
-        <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm"
-             style={{fontSize: '0.875rem', color: '#2DB5AA'}}>
-          <span><strong>{timesheets.filter(ts => ts.status === 'APPROVED').length}</strong> approved</span>
-        </div>
-      </div>
+              <table className="table">
+                <thead>
+                  <tr style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase' }}>
+                    <th className="border-0">Week Commencing</th>
+                    <th className="border-0">Week Ending</th>
+                    <th className="border-0">Status</th>
+                    <th className="border-0">Submission Deadline</th>
+                    <th className="border-0">Submitted</th>
+                    <th className="border-0 text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timesheets.map(ts => (
+                    <tr key={ts.timesheetID} style={{ verticalAlign: 'middle' }}>
+                      <td className="py-3 border-light">{formatDate(ts.weekCommencing)}</td>
+                      <td className="py-3 border-light">{formatDate(ts.weekEnding)}</td>
+                      <td className="py-3 border-light"><StatusBadge status={ts.status} /></td>
+                      <td className="py-3 border-light text-muted small">{getDeadline(ts.weekCommencing)}</td>
+                      <td className="py-3 border-light text-muted small">{ts.submitDate ? formatDate(ts.submitDate) : '—'}</td>
+                      <td className="py-3 border-light text-end">
+                        <Button 
+                          variant="outline-secondary" 
+                          size="sm" 
+                          className="d-flex align-items-center gap-1 ms-auto"
+                          style={{ fontSize: '0.8rem', borderRadius: '6px' }}
+                          onClick={() => setSelectedId(ts.timesheetID)}
+                        >
+                          <FontAwesomeIcon icon={faEye} size="xs" />
+                          {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit' : 'View'}
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-      {/* Content */}
-      <div className="mx-4" style={{marginTop: '0'}}>
-        <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            {/* MOBILE VIEW: Side-Border Card Layout */}
+            <div className="d-md-none d-flex flex-column gap-3">
+              <div className="d-flex justify-content-between align-items-center mb-2 px-1">
+                <h2 className="fw-bold h4 mb-0">My Timesheets</h2>
+                <Button onClick={() => setShowModal(true)} size="sm" style={{ background: '#00789A', border: 'none' }}>+ New</Button>
+              </div>
+              {timesheets.map(ts => {
+                const style = STATUS_STYLE[ts.status] || STATUS_STYLE.DRAFT;
+                return (
+                  <div key={ts.timesheetID} className="bg-white rounded-3 shadow-sm p-3" 
+                       style={{ borderLeft: `6px solid ${style.border}`, border: '1px solid #eee', borderLeftWidth: '6px' }}>
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h6 className="fw-bold mb-0">{consultantName}</h6>
+                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>ID: #{ts.timesheetID}</div>
+                      </div>
+                      <StatusBadge status={ts.status} />
+                    </div>
+                    <div className="mb-3 small">
+                      <strong>Assigned:</strong> {formatDate(ts.weekCommencing)} to {formatDate(ts.weekEnding)}
+                    </div>
+                    <Button 
+                      className="w-100 border-0 d-flex align-items-center justify-content-center gap-2 py-2" 
+                      style={{ background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)', borderRadius: '8px', fontWeight: 500 }}
+                      onClick={() => setSelectedId(ts.timesheetID)}
+                    >
+                      <FontAwesomeIcon icon={faEye} />
+                      {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit Details' : 'View Details'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </Container>
 
-          {/* Title row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>Timesheets</h2>
-            <button
-              onClick={() => { setSelectedMonday(''); setModalError(''); setShowModal(true); }}
-              style={{ background: '#00789A', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', cursor: 'pointer', fontWeight: 500 }}
-            >
-              + New Timesheet
-            </button>
-          </div>
-
-          {loading && <div className="d-flex justify-content-center py-5"><Loader /></div>}
-          {error && <Alert variant="danger">{error}</Alert>}
-
-          {!loading && !error && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-              <thead>
-              <tr style={{color: '#aaa', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>
-                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Week Commencing</th>
-                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Week Ending</th>
-                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Status</th>
-                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Submission Deadline</th>
-                <th style={{textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #eee'}}>Submitted</th>
-                <th style={{borderBottom: '1px solid #eee'}}></th>
-              </tr>
-              </thead>
-              <tbody>
-              {timesheets.length === 0 ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#aaa' }}>No timesheets yet.</td></tr>
-                ) : (
-                  timesheets.map(ts => (
-                      <tr key={ts.timesheetID} style={{borderBottom: '1px solid #f5f5f5'}}>
-                        <td style={{padding: '14px 0'}}>{formatDate(ts.weekCommencing)}</td>
-                        <td style={{padding: '14px 0'}}>{formatDate(ts.weekEnding)}</td>
-                        <td style={{padding: '14px 0'}}><StatusBadge status={ts.status}/></td>
-                        <td style={{padding: '14px 0', color: '#888'}}>{getDeadline(ts.weekCommencing)}</td>
-                        <td style={{padding: '14px 0', color: '#888'}}>{formatDate(ts.submitDate)}</td>
-                        <td style={{padding: '14px 0', textAlign: 'right'}}>
-                          <button
-                              onClick={() => setSelectedId(ts.timesheetID)}
-                              style={{
-                                background: 'none',
-                                border: '1px solid #ddd',
-                                borderRadius: '6px',
-                                padding: '4px 14px',
-                                cursor: 'pointer',
-                                fontSize: '0.83rem',
-                                color: '#555'
-                              }}
-                          >
-                            {ts.status === 'DRAFT' || ts.status === 'REJECTED' ? 'Edit' : (
-                                <><FontAwesomeIcon icon={faEye} className="me-1"/>View</>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      {/* New Timesheet Modal */}
+      {/* NEW TIMESHEET MODAL */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>New Timesheet</Modal.Title>
-        </Modal.Header>
+        <Modal.Header closeButton className="border-0 pb-0"><Modal.Title className="fw-bold">New Timesheet</Modal.Title></Modal.Header>
         <Modal.Body>
-          <p className="text-muted small mb-3">Select the Monday of the week you want to create a timesheet for.</p>
-          <Form.Group>
-            <Form.Label>Week commencing (Monday)</Form.Label>
-            <Form.Control
-              type="date"
-              value={selectedMonday}
-              onChange={e => { setSelectedMonday(e.target.value); setModalError(''); }}
-            />
+          <Form.Group className="mb-3">
+            <Form.Label className="small fw-bold text-muted">WEEK COMMENCING (MONDAY)</Form.Label>
+            <Form.Control type="date" value={selectedMonday} onChange={e => setSelectedMonday(e.target.value)} />
           </Form.Group>
-          {selectedMonday && new Date(selectedMonday + 'T00:00:00').getDay() === 1 && (
-            <Alert variant="success" className="py-2 mt-3">
-              Week ending: {new Date(getSunday(selectedMonday) + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </Alert>
-          )}
-          {modalError && <Alert variant="danger" className="py-2 mt-2">{modalError}</Alert>}
+          {modalError && <Alert variant="danger" className="py-2 small">{modalError}</Alert>}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="outline-secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-          <Button
-            disabled={creating}
-            onClick={handleCreateNew}
-            style={{ background: '#00789A', borderColor: '#00789A' }}
-          >
-            {creating ? <Spinner animation="border" size="sm" /> : 'Confirm'}
+        <Modal.Footer className="border-0 pt-0">
+          <Button variant="light" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button onClick={handleCreateNew} disabled={creating} style={{ background: '#00789A', border: 'none' }}>
+            {creating ? <Spinner size="sm" /> : 'Confirm'}
           </Button>
         </Modal.Footer>
       </Modal>
