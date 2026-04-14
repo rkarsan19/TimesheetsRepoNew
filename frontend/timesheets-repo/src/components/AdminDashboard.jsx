@@ -12,7 +12,7 @@ import {
   faTimes
 } from '@fortawesome/free-solid-svg-icons';
 
-function AdminDashboard({ user, onLogout, onProfileClick }) {
+function AdminDashboard({ user, onProfileClick }) {
   const [activeCard, setActiveCard] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -228,13 +228,6 @@ function AdminDashboard({ user, onLogout, onProfileClick }) {
               {card.title}
             </button>
           ))}
-        </div>
-
-        <div className="mt-auto">
-          <button onClick={onLogout} className="btn text-white d-flex align-items-center gap-3 px-3 py-2 rounded-3 w-100 text-start" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: 'none' }}>
-            <FontAwesomeIcon icon={faRightFromBracket} />
-            Logout
-          </button>
         </div>
       </div>
 
