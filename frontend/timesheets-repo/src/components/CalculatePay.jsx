@@ -1,580 +1,1036 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { Modal, Button, Spinner } from "react-bootstrap";
-import Loader from "./loadingAni";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faFileInvoiceDollar, faUsers, faCheckCircle, faDownload,
-  faExclamationTriangle, faClockRotateLeft,
+  faFileInvoiceDollar,
+  faUsers,
+  faCheckCircle,
+  faDownload,
+  faTriangleExclamation,
+  faHistory,
+  faMoneyBillWave,
+  faCalendarAlt,
 } from "@fortawesome/free-solid-svg-icons";
 import NotificationBell from "./NotificationBell";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const API_BASE = "http://localhost:8000/api";
-const STANDARD_DAY_HOURS = 8;
+const BASE_URL = "http://localhost:8000/api";
+const HOURS_PER_DAY = 8;
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return "—";
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric",
+// ─── Utility helpers ────────────────────────────────────────────────────────
+
+function fmtDate(raw) {
+  if (!raw) return "—";
+  return new Date(raw + "T00:00:00").toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
   });
-};
+}
 
-const formatMoney = (val) =>
-  `£${parseFloat(val || 0).toLocaleString("en-GB", {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })}`;
-
-const getMonthLabel = (monthStr) => {
-  const [year, month] = monthStr.split("-");
-  return new Date(year, parseInt(month) - 1).toLocaleDateString("en-GB", {
-    month: "long", year: "numeric",
+function fmtGBP(amount) {
+  return "£" + parseFloat(amount || 0).toLocaleString("en-GB", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
-};
+}
 
-const getCurrentMonthStr = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-};
+function monthLabel(str) {
+  const [y, m] = str.split("-");
+  return new Date(y, parseInt(m) - 1).toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
-const timesheetInMonth = (ts, monthStr) => {
+function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function isInMonth(ts, monthStr) {
   if (!ts.weekCommencing) return false;
-  const [year, month] = monthStr.split("-");
+  const [y, m] = monthStr.split("-");
   const d = new Date(ts.weekCommencing + "T00:00:00");
-  return d.getFullYear() === parseInt(year) && d.getMonth() + 1 === parseInt(month);
-};
+  return d.getFullYear() === parseInt(y) && d.getMonth() + 1 === parseInt(m);
+}
 
-const calcEntryPay = (entry, clientsById, assignmentRates, fallbackRate) => {
-  const std = parseFloat(entry.hoursWorked || 0);
-  const ot = parseFloat(entry.overtime_hours || 0);
-  const client = entry.client ? clientsById[entry.client] : null;
-  const aByClient = assignmentRates?.byClient || {};
-  const aDefault = assignmentRates?.default || 0;
+// ─── Pay calculation ─────────────────────────────────────────────────────────
 
-  let rate = parseFloat(fallbackRate || 0);
-  if (client && parseFloat(client.daily_rate) > 0) rate = parseFloat(client.daily_rate);
-  if (aDefault > 0) rate = aDefault;
-  if (entry.client && aByClient[entry.client] > 0) rate = aByClient[entry.client];
+function computeEntryPay(entry, clientMap, rateInfo, consultantRate) {
+  const stdHrs = parseFloat(entry.hoursWorked || 0);
+  const otHrs = parseFloat(entry.overtime_hours || 0);
+  const clientObj = entry.client ? clientMap[entry.client] : null;
+  const byClient = rateInfo?.byClient || {};
+  const defaultRate = rateInfo?.default || 0;
 
-  const hourly = rate / STANDARD_DAY_HOURS;
+  let dailyRate = parseFloat(consultantRate || 0);
+  if (clientObj && parseFloat(clientObj.daily_rate) > 0) dailyRate = parseFloat(clientObj.daily_rate);
+  if (defaultRate > 0) dailyRate = defaultRate;
+  if (entry.client && byClient[entry.client] > 0) dailyRate = byClient[entry.client];
+
+  const hourlyRate = dailyRate / HOURS_PER_DAY;
+  const stdPay = hourlyRate * stdHrs;
+  const otPay = hourlyRate * 1.5 * otHrs;
+
   return {
-    std, ot, rate,
-    stdPay: hourly * std,
-    otPay: hourly * 1.5 * ot,
-    totalPay: hourly * std + hourly * 1.5 * ot,
-    clientName: client?.name || null,
-    hasMissingRate: rate === 0,
+    stdHrs,
+    otHrs,
+    dailyRate,
+    stdPay,
+    otPay,
+    total: stdPay + otPay,
+    clientLabel: clientObj?.name || null,
+    missingRate: dailyRate === 0,
   };
+}
+
+function buildBreakdown(entries, clientMap, rateInfo, consultantRate) {
+  const groups = {};
+  for (const entry of entries) {
+    const pay = computeEntryPay(entry, clientMap, rateInfo, consultantRate);
+    const key = entry.client ? `c_${entry.client}` : "none";
+    const label = pay.clientLabel || "Unassigned";
+    if (!groups[key]) {
+      groups[key] = { label, dailyRate: pay.dailyRate, stdHrs: 0, otHrs: 0, stdPay: 0, otPay: 0, total: 0, missingRate: pay.missingRate };
+    }
+    groups[key].stdHrs += pay.stdHrs;
+    groups[key].otHrs += pay.otHrs;
+    groups[key].stdPay += pay.stdPay;
+    groups[key].otPay += pay.otPay;
+    groups[key].total += pay.total;
+  }
+  return Object.values(groups);
+}
+
+// ─── Inline styles ───────────────────────────────────────────────────────────
+
+const C = {
+  dark: "#003d4f",
+  mid: "#006680",
+  bright: "#00c9b1",
+  accent: "#00e5cc",
+  bg: "#f2f7f8",
+  cardBg: "#ffffff",
+  border: "#e4edef",
+  muted: "#7a9aa3",
+  warning: "#ff7849",
+  warningBg: "#fff4f0",
+  success: "#00b894",
+  successBg: "#e6faf6",
 };
 
-const buildClientBreakdown = (entries, clientsById, assignmentRates, fallbackRate) => {
-  const map = {};
-  for (const entry of entries) {
-    const calc = calcEntryPay(entry, clientsById, assignmentRates, fallbackRate);
-    const key = entry.client ? `client_${entry.client}` : "no_client";
-    const label = calc.clientName || "No client assigned";
-    if (!map[key]) {
-      map[key] = { label, rate: calc.rate, std: 0, ot: 0, stdPay: 0, otPay: 0, totalPay: 0, hasMissingRate: calc.hasMissingRate };
-    }
-    map[key].std += calc.std;
-    map[key].ot += calc.ot;
-    map[key].stdPay += calc.stdPay;
-    map[key].otPay += calc.otPay;
-    map[key].totalPay += calc.totalPay;
-  }
-  return Object.values(map);
+const styles = {
+  page: {
+    backgroundColor: C.bg,
+    minHeight: "100vh",
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+  },
+  header: {
+    backgroundColor: C.dark,
+    padding: "0 2rem",
+    height: "64px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottom: `3px solid ${C.bright}`,
+  },
+  headerTitle: {
+    fontSize: "1.25rem",
+    fontWeight: 700,
+    margin: 0,
+    color: "#fff",
+    letterSpacing: "-0.01em",
+  },
+  headerRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.85rem",
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: "10px",
+    backgroundColor: C.bright,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
+    fontSize: "0.8rem",
+    color: C.dark,
+    cursor: "pointer",
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "1rem",
+    padding: "1.25rem 1.75rem 0",
+  },
+  statCard: (accent) => ({
+    backgroundColor: C.cardBg,
+    border: `1px solid ${C.border}`,
+    borderLeft: `4px solid ${accent}`,
+    borderRadius: "10px",
+    padding: "1rem 1.25rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem",
+  }),
+  statIcon: (bg) => ({
+    width: 42,
+    height: 42,
+    borderRadius: "10px",
+    backgroundColor: bg,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  }),
+  statNum: {
+    fontSize: "1.6rem",
+    fontWeight: 800,
+    color: C.dark,
+    lineHeight: 1,
+    marginBottom: "0.15rem",
+  },
+  statLabel: {
+    fontSize: "0.72rem",
+    color: C.muted,
+    fontWeight: 500,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+  filterBar: {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: "1rem",
+    padding: "1.25rem 1.75rem",
+    backgroundColor: C.cardBg,
+    margin: "1.25rem 1.75rem 0",
+    borderRadius: "12px",
+    border: `1px solid ${C.border}`,
+    flexWrap: "wrap",
+  },
+  filterGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.3rem",
+    flex: 1,
+    minWidth: "180px",
+  },
+  filterLabel: {
+    fontSize: "0.68rem",
+    fontWeight: 700,
+    color: C.muted,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+  },
+  filterSelect: {
+    padding: "0.55rem 0.85rem",
+    borderRadius: "8px",
+    border: `1.5px solid ${C.border}`,
+    backgroundColor: C.bg,
+    fontSize: "0.875rem",
+    color: C.dark,
+    outline: "none",
+    fontWeight: 500,
+  },
+  consultantChip: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    padding: "0.55rem 1rem",
+    backgroundColor: `${C.bright}18`,
+    borderRadius: "8px",
+    border: `1px solid ${C.bright}55`,
+  },
+  bodyWrap: {
+    padding: "1.25rem 1.75rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.25rem",
+  },
+  card: {
+    backgroundColor: C.cardBg,
+    borderRadius: "12px",
+    border: `1px solid ${C.border}`,
+    overflow: "hidden",
+  },
+  cardHead: {
+    padding: "0.85rem 1.25rem",
+    backgroundColor: C.dark,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardHeadTitle: {
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: "0.875rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    margin: 0,
+  },
+  tableWrap: {
+    overflowX: "auto",
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontSize: "0.875rem",
+  },
+  th: {
+    padding: "0.65rem 1.1rem",
+    textAlign: "left",
+    fontWeight: 600,
+    fontSize: "0.7rem",
+    color: C.muted,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    borderBottom: `2px solid ${C.border}`,
+    whiteSpace: "nowrap",
+    backgroundColor: "#f8fbfc",
+  },
+  td: {
+    padding: "0.9rem 1.1rem",
+    borderBottom: `1px solid ${C.border}`,
+    verticalAlign: "middle",
+    color: "#334",
+  },
+  tfootTd: {
+    padding: "0.9rem 1.1rem",
+    backgroundColor: `${C.bright}15`,
+    fontWeight: 700,
+    color: C.dark,
+    borderTop: `2px solid ${C.bright}55`,
+  },
+  emptyState: {
+    textAlign: "center",
+    padding: "3.5rem 1rem",
+    color: C.muted,
+  },
+  clientTag: {
+    display: "inline-block",
+    padding: "0.18rem 0.55rem",
+    borderRadius: "5px",
+    fontSize: "0.7rem",
+    fontWeight: 600,
+    backgroundColor: `${C.bright}22`,
+    color: C.mid,
+    marginRight: "0.25rem",
+    marginBottom: "0.1rem",
+  },
+  warningBanner: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "0.65rem",
+    padding: "0.85rem 1.25rem",
+    backgroundColor: C.warningBg,
+    borderLeft: `4px solid ${C.warning}`,
+    fontSize: "0.82rem",
+    color: "#7a3010",
+  },
+  actionBar: {
+    padding: "0.85rem 1.25rem",
+    backgroundColor: "#f8fbfc",
+    borderTop: `1px solid ${C.border}`,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+  },
+  generateBtn: (active) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.55rem 1.3rem",
+    borderRadius: "8px",
+    border: "none",
+    backgroundColor: active ? C.dark : "#ccd5d8",
+    color: active ? "#fff" : "#999",
+    fontWeight: 700,
+    fontSize: "0.83rem",
+    cursor: active ? "pointer" : "not-allowed",
+    transition: "background 0.15s",
+  }),
+  viewBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.45rem",
+    padding: "0.5rem 1.1rem",
+    borderRadius: "8px",
+    border: `2px solid ${C.bright}`,
+    backgroundColor: "transparent",
+    color: C.mid,
+    fontWeight: 700,
+    fontSize: "0.83rem",
+    cursor: "pointer",
+  },
+  doneBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    padding: "0.4rem 0.85rem",
+    borderRadius: "8px",
+    backgroundColor: C.successBg,
+    color: C.success,
+    fontWeight: 700,
+    fontSize: "0.78rem",
+    border: `1px solid ${C.success}44`,
+  },
+  historyList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 0,
+  },
+  histRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0.85rem 1.25rem",
+    borderBottom: `1px solid ${C.border}`,
+    gap: "1rem",
+  },
+  histWeek: {
+    fontWeight: 600,
+    fontSize: "0.875rem",
+    color: C.dark,
+    minWidth: "110px",
+  },
+  histMeta: {
+    fontSize: "0.78rem",
+    color: C.muted,
+    display: "flex",
+    gap: "0.75rem",
+  },
+  histPay: {
+    fontWeight: 800,
+    fontSize: "1rem",
+    color: C.mid,
+    marginLeft: "auto",
+  },
+  histDlBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.35rem",
+    padding: "0.35rem 0.75rem",
+    borderRadius: "6px",
+    border: `1.5px solid ${C.border}`,
+    backgroundColor: "#fff",
+    color: C.muted,
+    fontSize: "0.75rem",
+    cursor: "pointer",
+    fontWeight: 600,
+    flexShrink: 0,
+  },
 };
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const FinanceDashboard = ({ user, onProfileClick }) => {
   const [consultants, setConsultants] = useState([]);
-  const [clientsById, setClientsById] = useState({});
-  const [timesheets, setTimesheets] = useState([]);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [selectedConsultant, setSelectedConsultant] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
-  const [entriesMap, setEntriesMap] = useState({});
-  const [assignmentsMap, setAssignmentsMap] = useState({});
-  const [loadingEntries, setLoadingEntries] = useState(false);
-  const [showPayslip, setShowPayslip] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [payslipDone, setPayslipDone] = useState(false);
-  const [payHistory, setPayHistory] = useState([]);
-  const [paidTimesheets, setPaidTimesheets] = useState([]);
-  const [historyEntriesMap, setHistoryEntriesMap] = useState({});
-  const [historyAssignmentsMap, setHistoryAssignmentsMap] = useState({});
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [clientMap, setClientMap] = useState({});
+  const [allTimesheets, setAllTimesheets] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  const [chosenConsultant, setChosenConsultant] = useState(null);
+  const [chosenMonth, setChosenMonth] = useState(currentMonth());
+
+  const [entriesMap, setEntriesMap] = useState({});
+  const [ratesMap, setRatesMap] = useState({});
+  const [loadingEntries, setLoadingEntries] = useState(false);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [payDone, setPayDone] = useState(false);
+
+  const [payHistory, setPayHistory] = useState([]);
+  const [paidSheets, setPaidSheets] = useState([]);
+  const [histEntries, setHistEntries] = useState({});
+  const [histRates, setHistRates] = useState({});
+  const [histLoading, setHistLoading] = useState(false);
+
+  // Initial data load
   useEffect(() => {
-    const load = async () => {
-      setPageLoading(true);
+    (async () => {
+      setLoading(true);
       try {
         const [cRes, tRes, clRes] = await Promise.all([
-          axios.get(`${API_BASE}/consultants/`),
-          axios.get(`${API_BASE}/timesheets/`),
-          axios.get(`${API_BASE}/clients/`),
-          new Promise((r) => setTimeout(r, 700)),
+          axios.get(`${BASE_URL}/consultants/`),
+          axios.get(`${BASE_URL}/timesheets/`),
+          axios.get(`${BASE_URL}/clients/`),
         ]);
         setConsultants(cRes.data);
-        setTimesheets(tRes.data);
-        const byId = {};
-        clRes.data.forEach((c) => { byId[c.clientId] = c; });
-        setClientsById(byId);
-      } catch (err) {
-        console.error("Failed to load data:", err);
+        setAllTimesheets(tRes.data);
+        const map = {};
+        clRes.data.forEach((c) => { map[c.clientId] = c; });
+        setClientMap(map);
+      } catch (e) {
+        console.error(e);
       } finally {
-        setPageLoading(false);
+        setLoading(false);
       }
-    };
-    load();
+    })();
   }, []);
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const loadEntries = useCallback(async (consultant, month) => {
-    const relevant = timesheets.filter(
-      (ts) => ts.consultant === consultant.consultantId && ts.status === "APPROVED" && timesheetInMonth(ts, month)
+  // Load entries for selected consultant + month
+  const fetchEntries = useCallback(async (consultant, month) => {
+    const sheets = allTimesheets.filter(
+      (ts) => ts.consultant === consultant.consultantId && ts.status === "APPROVED" && isInMonth(ts, month)
     );
-    if (relevant.length === 0) {
-      setEntriesMap({});
-      setAssignmentsMap({});
-      return;
-    }
+    if (!sheets.length) { setEntriesMap({}); setRatesMap({}); return; }
     setLoadingEntries(true);
     try {
       const results = await Promise.all(
-        relevant.map((ts) =>
+        sheets.map((ts) =>
           Promise.all([
-            axios.get(`${API_BASE}/timesheets/${ts.timesheetID}/entries/`),
-            axios.get(`${API_BASE}/timesheets/${ts.timesheetID}/assignments/`),
-          ]).then(([eRes, aRes]) => ({ id: ts.timesheetID, entries: eRes.data, assignments: aRes.data }))
+            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/entries/`),
+            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/assignments/`),
+          ]).then(([e, a]) => ({ id: ts.timesheetID, entries: e.data, assignments: a.data }))
         )
       );
-      const eMap = {};
-      const aMap = {};
+      const eMap = {}, rMap = {};
       results.forEach(({ id, entries, assignments }) => {
         eMap[id] = entries;
         const byClient = {};
-        let defaultRate = 0;
+        let def = 0;
         if (assignments.length === 1) {
-          defaultRate = parseFloat(assignments[0].daily_rate) || 0;
+          def = parseFloat(assignments[0].daily_rate) || 0;
         } else if (assignments.length > 1) {
           assignments.forEach((a) => {
             if (a.client && parseFloat(a.daily_rate) > 0) byClient[a.client] = parseFloat(a.daily_rate);
           });
-          defaultRate = Math.max(...assignments.map((a) => parseFloat(a.daily_rate) || 0), 0);
+          def = Math.max(...assignments.map((a) => parseFloat(a.daily_rate) || 0), 0);
         }
-        aMap[id] = { byClient, default: defaultRate };
+        rMap[id] = { byClient, default: def };
       });
       setEntriesMap(eMap);
-      setAssignmentsMap(aMap);
-    } catch (err) {
-      console.error("Failed to load entries:", err);
+      setRatesMap(rMap);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoadingEntries(false);
     }
-  }, [timesheets]);
+  }, [allTimesheets]);
 
-  const loadHistory = useCallback(async (consultant) => {
-    setLoadingHistory(true);
+  // Load pay history for selected consultant
+  const fetchHistory = useCallback(async (consultant) => {
+    setHistLoading(true);
     try {
       const [psRes, tsRes] = await Promise.all([
-        axios.get(`${API_BASE}/payslips/consultant/${consultant.consultantId}/`),
-        axios.get(`${API_BASE}/timesheets/consultant/${consultant.consultantId}/`),
+        axios.get(`${BASE_URL}/payslips/consultant/${consultant.consultantId}/`),
+        axios.get(`${BASE_URL}/timesheets/consultant/${consultant.consultantId}/`),
       ]);
       const paid = tsRes.data.filter((ts) => ts.status === "PAID");
-      setPaidTimesheets(paid);
+      setPaidSheets(paid);
       setPayHistory(psRes.data);
-      if (paid.length === 0) {
-        setHistoryEntriesMap({});
-        setHistoryAssignmentsMap({});
-        return;
-      }
-      const entryResults = await Promise.all(
+      if (!paid.length) { setHistEntries({}); setHistRates({}); return; }
+      const results = await Promise.all(
         paid.map((ts) =>
           Promise.all([
-            axios.get(`${API_BASE}/timesheets/${ts.timesheetID}/entries/`),
-            axios.get(`${API_BASE}/timesheets/${ts.timesheetID}/assignments/`),
-          ]).then(([eRes, aRes]) => ({ id: ts.timesheetID, entries: eRes.data, assignments: aRes.data }))
+            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/entries/`),
+            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/assignments/`),
+          ]).then(([e, a]) => ({ id: ts.timesheetID, entries: e.data, assignments: a.data }))
         )
       );
-      const eMap = {};
-      const aMap = {};
-      entryResults.forEach(({ id, entries, assignments }) => {
+      const eMap = {}, rMap = {};
+      results.forEach(({ id, entries, assignments }) => {
         eMap[id] = entries;
         const byClient = {};
-        let dRate = 0;
-        if (assignments.length === 1) dRate = parseFloat(assignments[0].daily_rate) || 0;
+        let def = 0;
+        if (assignments.length === 1) def = parseFloat(assignments[0].daily_rate) || 0;
         else if (assignments.length > 1) {
-          assignments.forEach(a => { if (a.client) byClient[a.client] = parseFloat(a.daily_rate); });
-          dRate = Math.max(...assignments.map(a => parseFloat(a.daily_rate) || 0), 0);
+          assignments.forEach((a) => { if (a.client) byClient[a.client] = parseFloat(a.daily_rate); });
+          def = Math.max(...assignments.map((a) => parseFloat(a.daily_rate) || 0), 0);
         }
-        aMap[id] = { byClient, default: dRate };
+        rMap[id] = { byClient, default: def };
       });
-      setHistoryEntriesMap(eMap);
-      setHistoryAssignmentsMap(aMap);
-    } catch (err) { console.error(err); } finally { setLoadingHistory(false); }
+      setHistEntries(eMap);
+      setHistRates(rMap);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setHistLoading(false);
+    }
   }, []);
 
-  const handleSelectConsultant = (cId) => {
-    const c = consultants.find((c) => c.consultantId === parseInt(cId));
-    setSelectedConsultant(c || null);
+  const onPickConsultant = (id) => {
+    const c = consultants.find((c) => c.consultantId === parseInt(id));
+    setChosenConsultant(c || null);
     setEntriesMap({});
-    setAssignmentsMap({});
-    setPayslipDone(false);
-    if (c) { loadEntries(c, selectedMonth); loadHistory(c); }
+    setRatesMap({});
+    setPayDone(false);
+    if (c) { fetchEntries(c, chosenMonth); fetchHistory(c); }
   };
 
-  const handleMonthChange = (m) => {
-    setSelectedMonth(m);
+  const onPickMonth = (m) => {
+    setChosenMonth(m);
     setEntriesMap({});
-    setAssignmentsMap({});
-    setPayslipDone(false);
-    if (selectedConsultant) loadEntries(selectedConsultant, m);
+    setRatesMap({});
+    setPayDone(false);
+    if (chosenConsultant) fetchEntries(chosenConsultant, m);
   };
 
-  const filteredTimesheets = selectedConsultant
-    ? timesheets.filter(ts => ts.consultant === selectedConsultant.consultantId && ts.status === "APPROVED" && timesheetInMonth(ts, selectedMonth))
+  // Sheets for current view
+  const visibleSheets = chosenConsultant
+    ? allTimesheets.filter((ts) => ts.consultant === chosenConsultant.consultantId && ts.status === "APPROVED" && isInMonth(ts, chosenMonth))
     : [];
 
-  const calcRow = (ts) => {
+  const rowCalc = (ts) => {
     const entries = entriesMap[ts.timesheetID] || [];
-    const aRates = assignmentsMap[ts.timesheetID] || {};
-    const fallback = parseFloat(selectedConsultant?.daily_rate || 0);
-    return entries.reduce((acc, entry) => {
-      const c = calcEntryPay(entry, clientsById, aRates, fallback);
-      return { stdHrs: acc.stdHrs + c.std, otHrs: acc.otHrs + c.ot, pay: acc.pay + c.totalPay, hasMissingRate: acc.hasMissingRate || c.hasMissingRate };
-    }, { stdHrs: 0, otHrs: 0, pay: 0, hasMissingRate: false });
+    const rInfo = ratesMap[ts.timesheetID] || {};
+    const fb = parseFloat(chosenConsultant?.daily_rate || 0);
+    return entries.reduce((acc, e) => {
+      const p = computeEntryPay(e, clientMap, rInfo, fb);
+      return { stdHrs: acc.stdHrs + p.stdHrs, otHrs: acc.otHrs + p.otHrs, total: acc.total + p.total, missingRate: acc.missingRate || p.missingRate };
+    }, { stdHrs: 0, otHrs: 0, total: 0, missingRate: false });
   };
 
-  const totals = filteredTimesheets.reduce((acc, ts) => {
-    const r = calcRow(ts);
-    return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, pay: acc.pay + r.pay, hasMissingRate: acc.hasMissingRate || r.hasMissingRate };
-  }, { stdHrs: 0, otHrs: 0, pay: 0, hasMissingRate: false });
+  const grandTotals = visibleSheets.reduce((acc, ts) => {
+    const r = rowCalc(ts);
+    return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, total: acc.total + r.total, missingRate: acc.missingRate || r.missingRate };
+  }, { stdHrs: 0, otHrs: 0, total: 0, missingRate: false });
 
-  const missingRateTimesheets = filteredTimesheets.filter(ts => {
-    const aInfo = assignmentsMap[ts.timesheetID];
-    if (aInfo && (aInfo.default > 0 || Object.keys(aInfo.byClient).length > 0)) return false;
+  const badRateSheets = visibleSheets.filter((ts) => {
+    const ri = ratesMap[ts.timesheetID];
+    if (ri && (ri.default > 0 || Object.keys(ri.byClient).length > 0)) return false;
     const entries = entriesMap[ts.timesheetID] || [];
-    const hasClientRate = entries.some(e => e.client && clientsById[e.client] && parseFloat(clientsById[e.client].daily_rate) > 0);
-    return !hasClientRate && parseFloat(selectedConsultant?.daily_rate || 0) === 0;
+    const hasClientRate = entries.some((e) => e.client && clientMap[e.client] && parseFloat(clientMap[e.client].daily_rate) > 0);
+    return !hasClientRate && parseFloat(chosenConsultant?.daily_rate || 0) === 0;
   });
-  const missingRateClients = missingRateTimesheets.map(ts => `Week ${formatDate(ts.weekCommencing)}`);
 
-  const hasTimesheets = filteredTimesheets.length > 0;
-  const canGenerate = hasTimesheets && !loadingEntries && !payslipDone && missingRateClients.length === 0;
+  const canPay = visibleSheets.length > 0 && !loadingEntries && !payDone && badRateSheets.length === 0;
 
-  const calcHistoryRow = (ts) => {
-    const entries = historyEntriesMap[ts.timesheetID] || [];
-    const aRates = historyAssignmentsMap[ts.timesheetID] || {};
-    const fb = parseFloat(selectedConsultant?.daily_rate || 0);
-    return entries.reduce((acc, entry) => {
-      const c = calcEntryPay(entry, clientsById, aRates, fb);
-      return { stdHrs: acc.stdHrs + c.std, otHrs: acc.otHrs + c.ot, pay: acc.pay + c.totalPay };
-    }, { stdHrs: 0, otHrs: 0, pay: 0 });
+  const histRowCalc = (ts) => {
+    const entries = histEntries[ts.timesheetID] || [];
+    const rInfo = histRates[ts.timesheetID] || {};
+    const fb = parseFloat(chosenConsultant?.daily_rate || 0);
+    return entries.reduce((acc, e) => {
+      const p = computeEntryPay(e, clientMap, rInfo, fb);
+      return { stdHrs: acc.stdHrs + p.stdHrs, otHrs: acc.otHrs + p.otHrs, total: acc.total + p.total };
+    }, { stdHrs: 0, otHrs: 0, total: 0 });
   };
 
-  const totalApprovedAwaiting = timesheets.filter(ts => ts.status === "APPROVED").length;
-  const totalPaidThisMonth = timesheets.filter(ts => ts.status === "PAID" && timesheetInMonth(ts, selectedMonth)).length;
+  // Stats
+  const awaitingCount = allTimesheets.filter((ts) => ts.status === "APPROVED").length;
+  const paidThisMonth = allTimesheets.filter((ts) => ts.status === "PAID" && isInMonth(ts, chosenMonth)).length;
 
+  // Actions
   const handleGeneratePayslip = async () => {
-    setGenerating(true);
+    setProcessing(true);
     try {
-      await Promise.all(filteredTimesheets.map(ts => axios.post(`${API_BASE}/payslips/calculate/`, { consultant_id: selectedConsultant.consultantId, timesheet_id: ts.timesheetID })));
-      await Promise.all(filteredTimesheets.map(ts => axios.put(`${API_BASE}/timesheets/${ts.timesheetID}/mark-paid/`)));
-      const tRes = await axios.get(`${API_BASE}/timesheets/`);
-      setTimesheets(tRes.data);
-      setPayslipDone(true);
-      if (selectedConsultant) loadHistory(selectedConsultant);
-    } catch (err) { console.error(err); } finally { setGenerating(false); }
+      await Promise.all(
+        visibleSheets.map((ts) =>
+          axios.post(`${BASE_URL}/payslips/calculate/`, {
+            consultant_id: chosenConsultant.consultantId,
+            timesheet_id: ts.timesheetID,
+          })
+        )
+      );
+      await Promise.all(visibleSheets.map((ts) => axios.put(`${BASE_URL}/timesheets/${ts.timesheetID}/mark-paid/`)));
+      const tRes = await axios.get(`${BASE_URL}/timesheets/`);
+      setAllTimesheets(tRes.data);
+      setPayDone(true);
+      if (chosenConsultant) fetchHistory(chosenConsultant);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const handleDownloadPDF = () => {
+  const downloadPDF = () => {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
-    doc.setFillColor(0, 120, 154); doc.rect(0, 0, pageW, 28, "F");
-    doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.text("TimeDime", 14, 12);
-    doc.setFontSize(10); doc.text("Payslip", 14, 21);
-    doc.setTextColor(40, 40, 40); doc.setFontSize(13); doc.text(selectedConsultant.name, 14, 38);
-    let currentY = 66;
-    filteredTimesheets.forEach((ts) => {
+    doc.setFillColor(0, 95, 122);
+    doc.rect(0, 0, pageW, 26, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text("TimeDime — Payslip", 14, 10);
+    doc.setFontSize(9);
+    doc.text(`${chosenConsultant.name} · ${monthLabel(chosenMonth)}`, 14, 19);
+    doc.setTextColor(40, 40, 40);
+    let y = 36;
+    visibleSheets.forEach((ts) => {
       const entries = entriesMap[ts.timesheetID] || [];
-      const aRates = assignmentsMap[ts.timesheetID] || {};
-      const breakdown = buildClientBreakdown(entries, clientsById, aRates, selectedConsultant.daily_rate);
+      const rInfo = ratesMap[ts.timesheetID] || {};
+      const breakdown = buildBreakdown(entries, clientMap, rInfo, chosenConsultant.daily_rate);
+      doc.setFontSize(10);
+      doc.setTextColor(0, 95, 122);
+      doc.text(`Week commencing ${fmtDate(ts.weekCommencing)}`, 14, y);
+      y += 4;
+      doc.setTextColor(40, 40, 40);
       autoTable(doc, {
-        startY: currentY,
-        head: [["Client", "Daily Rate", "Std Hrs", "OT Hrs", "Total Pay"]],
-        body: breakdown.map(b => [b.label, formatMoney(b.rate), b.std + "h", b.ot + "h", formatMoney(b.totalPay)]),
+        startY: y,
+        head: [["Client", "Daily Rate", "Std Hrs", "OT Hrs", "Total"]],
+        body: breakdown.map((b) => [b.label, fmtGBP(b.dailyRate), b.stdHrs + "h", b.otHrs + "h", fmtGBP(b.total)]),
+        theme: "striped",
+        headStyles: { fillColor: [0, 168, 150] },
       });
-      currentY = doc.lastAutoTable.finalY + 10;
+      y = doc.lastAutoTable.finalY + 10;
     });
-    doc.save(`payslip_${selectedConsultant.name}.pdf`);
+    doc.save(`payslip_${chosenConsultant.name.replace(/\s+/g, "_")}.pdf`);
   };
 
-  const handleDownloadHistoryPDF = (ts) => {
+  const downloadHistPDF = (ts) => {
     const doc = new jsPDF();
-    const row = calcHistoryRow(ts);
-    doc.text(`Payslip: ${selectedConsultant.name}`, 14, 20);
-    doc.text(`Week: ${formatDate(ts.weekCommencing)}`, 14, 30);
-    doc.text(`Total Pay: ${formatMoney(row.pay)}`, 14, 40);
-    doc.save(`history_${ts.timesheetID}.pdf`);
+    const r = histRowCalc(ts);
+    doc.setFontSize(14);
+    doc.text(`Payslip — ${chosenConsultant.name}`, 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Week: ${fmtDate(ts.weekCommencing)}`, 14, 30);
+    doc.text(`Std Hours: ${r.stdHrs}h  OT Hours: ${r.otHrs}h`, 14, 38);
+    doc.text(`Total Pay: ${fmtGBP(r.total)}`, 14, 46);
+    doc.save(`payslip_hist_${ts.timesheetID}.pdf`);
   };
 
-  const userName = user?.name || "Finance";
-  const initials = userName.split(" ").map(n => n[0]).join("").toUpperCase();
+  const userLabel = user?.name || "Finance";
+  const initials = userLabel.split(" ").map((w) => w[0]).join("").toUpperCase();
+
+  if (loading) {
+    return (
+      <div style={{ ...styles.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spinner animation="border" style={{ color: "#005f7a" }} />
+      </div>
+    );
+  }
 
   return (
-    <div className="container-fluid p-0" style={{ backgroundColor: "#f0f4f4", minHeight: "100vh" }}>
-      <style>{`
-        @media (max-width: 768px) {
-          .desktop-table { display: none !important; }
-          .mobile-card-view { display: block !important; }
-          .stat-card { width: 100% !important; justify-content: center; }
-          .filter-container { flex-direction: column !important; align-items: stretch !important; }
-          .filter-item { width: 100% !important; }
-          .action-bar { flex-direction: column !important; align-items: stretch !important; }
-          .action-bar button { width: 100%; justify-content: center; }
-        }
-        .mobile-card-view { display: none; }
-        .timesheet-card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-      `}</style>
+    <div style={styles.page}>
 
-      {/* Header */}
-      <div className="text-white px-5 pt-4 pb-4" style={{ background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)", position: "relative", padding: isMobile ? '1rem 1.5rem' : undefined }}>
-        <div 
-          className="position-absolute d-flex align-items-center gap-2" 
-          style={{ 
-            top: isMobile ? "0.8rem" : "20px", 
-            right: isMobile ? "1rem" : "30px" 
-          }}
-        >
-          {/* Bell is now visible on both mobile and desktop */}
+      {/* ── Header ── */}
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>Welcome, {userLabel}</h1>
+        <div style={styles.headerRight}>
           <NotificationBell userId={user?.userID} />
-          
-          <div className="d-flex align-items-center gap-2 ms-1">
-            {!isMobile && (
-              <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userName}</span>
-            )}
-            <div 
-              onClick={onProfileClick} 
-              style={{ 
-                width: isMobile ? "34px" : "42px", 
-                height: isMobile ? "34px" : "42px", 
-                borderRadius: "50%", 
-                backgroundColor: "rgba(255,255,255,0.25)", 
-                border: "2px solid rgba(255,255,255,0.6)", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center", 
-                fontWeight: "700", 
-                cursor: "pointer",
-                fontSize: isMobile ? "0.8rem" : "1rem"
-              }}
-            >
-              {initials}
+          <span style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.75)" }}>{userLabel}</span>
+          <div style={styles.avatar} onClick={onProfileClick}>{initials}</div>
+        </div>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div style={styles.statsGrid}>
+        <div style={styles.statCard(C.bright)}>
+          <div style={styles.statIcon(`${C.bright}22`)}>
+            <FontAwesomeIcon icon={faFileInvoiceDollar} style={{ color: C.bright, fontSize: "1.1rem" }} />
+          </div>
+          <div>
+            <div style={styles.statNum}>{awaitingCount}</div>
+            <div style={styles.statLabel}>Awaiting Payment</div>
+          </div>
+        </div>
+        <div style={styles.statCard(C.mid)}>
+          <div style={styles.statIcon(`${C.mid}22`)}>
+            <FontAwesomeIcon icon={faUsers} style={{ color: C.mid, fontSize: "1.1rem" }} />
+          </div>
+          <div>
+            <div style={styles.statNum}>{consultants.length}</div>
+            <div style={styles.statLabel}>Consultants</div>
+          </div>
+        </div>
+        <div style={styles.statCard(C.success)}>
+          <div style={styles.statIcon(`${C.success}22`)}>
+            <FontAwesomeIcon icon={faCheckCircle} style={{ color: C.success, fontSize: "1.1rem" }} />
+          </div>
+          <div>
+            <div style={styles.statNum}>{paidThisMonth}</div>
+            <div style={styles.statLabel}>Paid This Month</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Filter bar ── */}
+      <div style={styles.filterBar}>
+        <div style={styles.filterGroup}>
+          <label style={styles.filterLabel}>
+            <FontAwesomeIcon icon={faUsers} style={{ marginRight: "0.3rem" }} />Consultant
+          </label>
+          <select
+            style={styles.filterSelect}
+            value={chosenConsultant?.consultantId || ""}
+            onChange={(e) => onPickConsultant(e.target.value)}
+          >
+            <option value="">Select consultant…</option>
+            {consultants.map((c) => (
+              <option key={c.consultantId} value={c.consultantId}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div style={styles.filterGroup}>
+          <label style={styles.filterLabel}>
+            <FontAwesomeIcon icon={faCalendarAlt} style={{ marginRight: "0.3rem" }} />Month
+          </label>
+          <input
+            type="month"
+            style={styles.filterSelect}
+            value={chosenMonth}
+            onChange={(e) => onPickMonth(e.target.value)}
+          />
+        </div>
+        {chosenConsultant && (
+          <div style={styles.consultantChip}>
+            <div style={{ width: 32, height: 32, borderRadius: "8px", backgroundColor: C.bright, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "0.75rem", color: C.dark }}>
+              {chosenConsultant.name.split(" ").map((w) => w[0]).join("").toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: "0.82rem", color: C.dark }}>{chosenConsultant.name}</div>
+              <div style={{ fontSize: "0.7rem", color: C.muted }}>{fmtGBP(chosenConsultant.daily_rate || 0)}/day base rate</div>
             </div>
           </div>
-        </div>
-        <h1 className="fw-bold mb-0" style={{ fontSize: isMobile ? "1.5rem" : "2.2rem", marginTop: "10px" }}>Welcome, {userName}</h1>
+        )}
       </div>
 
-      {/* Stats row */}
-      <div className="mx-4 d-flex gap-3 align-items-center" style={{ marginTop: "20px", marginBottom: "12px", flexDirection: isMobile ? 'column' : 'row' }}>
-        <div className="stat-card d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: "0.875rem", color: "#00789A" }}>
-          <FontAwesomeIcon icon={faFileInvoiceDollar} />
-          <span><strong>{totalApprovedAwaiting}</strong> approved & awaiting payment</span>
-        </div>
-        <div className="stat-card d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: "0.875rem", color: "#2DB5AA" }}>
-          <FontAwesomeIcon icon={faUsers} />
-          <span><strong>{consultants.length}</strong> consultants</span>
-        </div>
-        <div className="stat-card d-flex align-items-center gap-2 px-3 py-2 rounded-3 bg-white shadow-sm" style={{ fontSize: "0.875rem", color: "#198754" }}>
-          <FontAwesomeIcon icon={faCheckCircle} />
-          <span><strong>{totalPaidThisMonth}</strong> paid</span>
-        </div>
-      </div>
-
-      {/* Main card */}
-      <div className="mx-4 bg-white rounded-4 shadow-sm p-4 mb-3" style={{ margin: isMobile ? '1rem' : undefined }}>
-        <div className="filter-container d-flex gap-3 mb-4 align-items-end">
-          <div className="filter-item">
-            <label className="form-label small fw-semibold text-secondary mb-1">Consultant</label>
-            <select className="form-select" style={{ minWidth: "220px", backgroundColor: "#3a3a3a", color: "#fff", border: "none" }} value={selectedConsultant?.consultantId || ""} onChange={(e) => handleSelectConsultant(e.target.value)}>
-              <option value="">Select consultant…</option>
-              {consultants.map(c => <option key={c.consultantId} value={c.consultantId}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="filter-item">
-            <label className="form-label small fw-semibold text-secondary mb-1">Month</label>
-            <input type="month" className="form-control" style={{ backgroundColor: "#3a3a3a", color: "#fff", border: "none" }} value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} />
-          </div>
-        </div>
+      {/* ── Main content ── */}
+      <div style={styles.bodyWrap}>
 
         {/* Missing rate warning */}
-        {missingRateClients.length > 0 && (
-          <div className="d-flex align-items-start gap-2 p-3 mb-3 rounded-3" style={{ background: "#fff8e1", border: "1px solid #ffe082", fontSize: "0.85rem" }}>
-            <FontAwesomeIcon icon={faExclamationTriangle} style={{ color: "#f59e0b", marginTop: "2px" }} />
-            <div><strong>Missing daily rates</strong> — timesheets for: <strong>{missingRateClients.join(", ")}</strong> have no rate.</div>
+        {badRateSheets.length > 0 && (
+          <div style={styles.warningBanner}>
+            <FontAwesomeIcon icon={faTriangleExclamation} style={{ color: C.warning, marginTop: "2px", flexShrink: 0 }} />
+            <div>
+              <strong>Missing daily rates</strong> — cannot calculate pay for:{" "}
+              <strong>{badRateSheets.map((ts) => `Week ${fmtDate(ts.weekCommencing)}`).join(", ")}</strong>
+            </div>
           </div>
         )}
 
-        {/* Content Area */}
-        {pageLoading || loadingEntries ? (
-          <div className="d-flex justify-content-center py-5"><Loader /></div>
-        ) : !selectedConsultant ? (
-          <div className="text-center text-secondary py-5"><FontAwesomeIcon icon={faUsers} style={{ fontSize: "2rem", opacity: 0.3 }} /><p className="mt-3">Select a consultant to begin.</p></div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <table className="table table-hover align-middle mb-0 desktop-table">
-              <thead className="text-secondary small">
-                <tr><th>ID</th><th>Week Commencing</th><th>Week Ending</th><th>Std Hours</th><th>OT Hours</th><th>Clients</th><th>Total Pay</th></tr>
-              </thead>
-              <tbody>
-                {filteredTimesheets.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-4">No approved timesheets for {getMonthLabel(selectedMonth)}.</td></tr>
-                ) : (
-                  filteredTimesheets.map(ts => {
-                    const r = calcRow(ts);
-                    const clientNames = [...new Set((entriesMap[ts.timesheetID] || []).filter(e => e.client && clientsById[e.client]).map(e => clientsById[e.client].name))];
-                    return (
-                      <tr key={ts.timesheetID}>
-                        <td className="text-muted small">#{ts.timesheetID}</td>
-                        <td>{formatDate(ts.weekCommencing)}</td>
-                        <td>{formatDate(ts.weekEnding)}</td>
-                        <td>{r.stdHrs.toFixed(1)}h</td>
-                        <td>{r.otHrs.toFixed(1)}h</td>
-                        <td>{clientNames.map(n => <span key={n} className="badge rounded-pill me-1" style={{ background: "#e8f4f8", color: "#00789A" }}>{n}</span>)}</td>
-                        <td style={{ fontWeight: 600, color: r.hasMissingRate ? "#f59e0b" : "#00789A" }}>{formatMoney(r.pay)}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-              {filteredTimesheets.length > 0 && (
-                <tfoot>
-                  <tr style={{ background: "#f0f4f4", borderTop: "2px solid #dee2e6" }}>
-                    <td colSpan={3} className="fw-bold p-3">Totals</td>
-                    <td className="fw-bold">{totals.stdHrs.toFixed(1)}h</td>
-                    <td className="fw-bold">{totals.otHrs.toFixed(1)}h</td>
-                    <td></td>
-                    <td className="fw-bold text-info fs-6">{formatMoney(totals.pay)}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
+        {/* Timesheets card */}
+        <div style={styles.card}>
+          <div style={styles.cardHead}>
+            <span style={styles.cardHeadTitle}>
+              <FontAwesomeIcon icon={faMoneyBillWave} />
+              Approved Timesheets — {monthLabel(chosenMonth)}
+            </span>
+            {visibleSheets.length > 0 && (
+              <span style={{ color: C.accent, fontSize: "0.75rem", fontWeight: 600 }}>
+                {visibleSheets.length} sheet{visibleSheets.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
 
-            {/* Mobile Card View */}
-            <div className="mobile-card-view">
-              {filteredTimesheets.map(ts => {
-                const r = calcRow(ts);
-                return (
-                  <div key={ts.timesheetID} className="timesheet-card">
-                    <div className="d-flex justify-content-between mb-2">
-                      <span className="text-muted small">#{ts.timesheetID}</span>
-                      <span className="fw-bold text-info">{formatMoney(r.pay)}</span>
-                    </div>
-                    <div className="small mb-1"><strong>Week:</strong> {formatDate(ts.weekCommencing)}</div>
-                    <div className="small"><strong>Hours:</strong> {r.stdHrs}h Std / {r.otHrs}h OT</div>
-                  </div>
-                );
-              })}
-              {hasTimesheets && (
-                <div className="p-3 rounded-3 mt-2" style={{ background: "#00789A", color: "#fff" }}>
-                  <div className="d-flex justify-content-between fw-bold"><span>Total Month Pay</span><span>{formatMoney(totals.pay)}</span></div>
+          {!chosenConsultant ? (
+            <div style={styles.emptyState}>
+              <FontAwesomeIcon icon={faUsers} style={{ fontSize: "2.5rem", opacity: 0.18, display: "block", margin: "0 auto 0.75rem" }} />
+              <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>No consultant selected</div>
+              <div style={{ fontSize: "0.8rem" }}>Choose a consultant above to see their timesheets.</div>
+            </div>
+          ) : loadingEntries ? (
+            <div style={styles.emptyState}>
+              <Spinner animation="border" size="sm" style={{ color: C.bright }} />
+            </div>
+          ) : (
+            <>
+              <div style={styles.tableWrap}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      {["ID", "Week Commencing", "Week Ending", "Std Hours", "OT Hours", "Clients", "Total Pay"].map((h) => (
+                        <th key={h} style={styles.th}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleSheets.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ ...styles.td, textAlign: "center", color: C.muted, padding: "2.5rem" }}>
+                          No approved timesheets for {monthLabel(chosenMonth)}.
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleSheets.map((ts, idx) => {
+                        const r = rowCalc(ts);
+                        const clientNames = [...new Set(
+                          (entriesMap[ts.timesheetID] || [])
+                            .filter((e) => e.client && clientMap[e.client])
+                            .map((e) => clientMap[e.client].name)
+                        )];
+                        return (
+                          <tr key={ts.timesheetID} style={{ backgroundColor: idx % 2 === 1 ? "#fafcfc" : "#fff" }}>
+                            <td style={{ ...styles.td, color: "#ccc", fontSize: "0.78rem" }}>#{ts.timesheetID}</td>
+                            <td style={{ ...styles.td, fontWeight: 500 }}>{fmtDate(ts.weekCommencing)}</td>
+                            <td style={styles.td}>{fmtDate(ts.weekEnding)}</td>
+                            <td style={styles.td}>{r.stdHrs.toFixed(1)}h</td>
+                            <td style={styles.td}>{r.otHrs.toFixed(1)}h</td>
+                            <td style={styles.td}>
+                              {clientNames.length
+                                ? clientNames.map((n) => <span key={n} style={styles.clientTag}>{n}</span>)
+                                : <span style={{ color: "#ccc", fontSize: "0.78rem" }}>—</span>}
+                            </td>
+                            <td style={{ ...styles.td, fontWeight: 700, color: r.missingRate ? C.warning : C.mid, fontSize: "0.95rem" }}>
+                              {fmtGBP(r.total)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  {visibleSheets.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td colSpan={3} style={styles.tfootTd}>Totals</td>
+                        <td style={styles.tfootTd}>{grandTotals.stdHrs.toFixed(1)}h</td>
+                        <td style={styles.tfootTd}>{grandTotals.otHrs.toFixed(1)}h</td>
+                        <td style={styles.tfootTd}></td>
+                        <td style={{ ...styles.tfootTd, fontSize: "1.05rem", color: C.dark }}>{fmtGBP(grandTotals.total)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              {visibleSheets.length > 0 && (
+                <div style={styles.actionBar}>
+                  {payDone ? (
+                    <>
+                      <div style={styles.doneBadge}>
+                        <FontAwesomeIcon icon={faCheckCircle} /> Payslip Processed
+                      </div>
+                      <button style={styles.viewBtn} onClick={() => setModalOpen(true)}>
+                        <FontAwesomeIcon icon={faDownload} /> View Payslip
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      style={styles.generateBtn(canPay)}
+                      disabled={!canPay || processing}
+                      onClick={() => setModalOpen(true)}
+                    >
+                      {processing
+                        ? <Spinner animation="border" size="sm" />
+                        : <FontAwesomeIcon icon={faFileInvoiceDollar} />}
+                      Generate Payslip
+                    </button>
+                  )}
                 </div>
               )}
-            </div>
+            </>
+          )}
+        </div>
 
-            {hasTimesheets && (
-              <div className="action-bar d-flex align-items-center gap-3 mt-4 pt-3" style={{ borderTop: "1px solid #eee" }}>
-                {payslipDone ? (
-                  <>
-                    <span className="badge rounded-pill px-3 py-2 bg-success-subtle text-success"><FontAwesomeIcon icon={faCheckCircle} className="me-2" />Processed</span>
-                    <button className="btn btn-sm btn-info text-white" onClick={() => setShowPayslip(true)}><FontAwesomeIcon icon={faDownload} /> View PDF</button>
-                  </>
-                ) : (
-                  <button className="btn d-flex align-items-center gap-2" style={{ background: canGenerate ? "#00789A" : "#ccc", color: "#fff" }} disabled={!canGenerate || generating} onClick={() => setShowPayslip(true)}>
-                    {generating ? <Spinner animation="border" size="sm" /> : <FontAwesomeIcon icon={faFileInvoiceDollar} />} Generate Payslip
-                  </button>
-                )}
-              </div>
-            )}
-          </>
+        {/* Pay history card */}
+        {chosenConsultant && (
+          <div style={styles.card}>
+            <div style={styles.cardHead}>
+              <span style={styles.cardHeadTitle}>
+                <FontAwesomeIcon icon={faHistory} /> Pay History
+              </span>
+              {paidSheets.length > 0 && (
+                <span style={{ color: C.accent, fontSize: "0.75rem", fontWeight: 600 }}>
+                  {paidSheets.length} record{paidSheets.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+            <div style={styles.historyList}>
+              {histLoading ? (
+                <div style={styles.emptyState}><Spinner animation="border" size="sm" style={{ color: C.bright }} /></div>
+              ) : paidSheets.length === 0 ? (
+                <div style={styles.emptyState}>No payment history for this consultant.</div>
+              ) : (
+                [...paidSheets]
+                  .sort((a, b) => new Date(b.weekCommencing) - new Date(a.weekCommencing))
+                  .map((ts) => {
+                    const r = histRowCalc(ts);
+                    const ps = payHistory.find((p) => p.timesheet === ts.timesheetID);
+                    return (
+                      <div key={ts.timesheetID} style={styles.histRow}>
+                        <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
+                        <div style={styles.histMeta}>
+                          <span>{r.stdHrs}h std</span>
+                          <span>{r.otHrs}h OT</span>
+                          {ps && <span>Paid {fmtDate(ps.generatedDate)}</span>}
+                        </div>
+                        <div style={styles.histPay}>{fmtGBP(r.total)}</div>
+                        <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
+                          <FontAwesomeIcon icon={faDownload} /> PDF
+                        </button>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
         )}
+
       </div>
 
-      {/* Pay History */}
-      {selectedConsultant && (
-        <div className="mx-4 bg-white rounded-4 shadow-sm p-4 mb-4">
-          <h6 className="fw-bold mb-3 d-flex align-items-center gap-2"><FontAwesomeIcon icon={faClockRotateLeft} style={{ color: "#00789A" }} /> Pay History</h6>
-          <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0">
-              <thead className="text-secondary small"><tr><th>Week</th><th>Std/OT</th><th>Total Pay</th><th>Date Paid</th><th></th></tr></thead>
-              <tbody>
-                {paidTimesheets.sort((a,b) => new Date(b.weekCommencing) - new Date(a.weekCommencing)).map(ts => {
-                  const r = calcHistoryRow(ts);
-                  const ps = payHistory.find(p => p.timesheet === ts.timesheetID);
-                  return (
-                    <tr key={ts.timesheetID}>
-                      <td>{formatDate(ts.weekCommencing)}</td>
-                      <td className="small">{r.stdHrs}h / {r.otHrs}h</td>
-                      <td className="fw-bold text-info">{formatMoney(r.pay)}</td>
-                      <td className="small">{ps ? formatDate(ps.generatedDate) : "—"}</td>
-                      <td><button className="btn btn-sm btn-light text-info" onClick={() => handleDownloadHistoryPDF(ts)}><FontAwesomeIcon icon={faDownload} /></button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Payslip Modal */}
-      <Modal show={showPayslip} onHide={() => setShowPayslip(false)} size="xl" centered fullscreen={isMobile}>
-        <Modal.Header closeButton style={{ background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)", color: "#fff" }}>
-          <Modal.Title className="fs-6"><FontAwesomeIcon icon={faFileInvoiceDollar} className="me-2" /> Payslip — {selectedConsultant?.name}</Modal.Title>
+      {/* ── Payslip Modal ── */}
+      <Modal show={modalOpen} onHide={() => setModalOpen(false)} size="lg" centered>
+        <Modal.Header closeButton style={{ backgroundColor: C.dark, color: "#fff", borderBottom: `3px solid ${C.bright}` }}>
+          <Modal.Title style={{ fontSize: "0.95rem", fontWeight: 700 }}>
+            <FontAwesomeIcon icon={faFileInvoiceDollar} className="me-2" style={{ color: C.bright }} />
+            Payslip — {chosenConsultant?.name}
+          </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          {selectedConsultant && (
+        <Modal.Body style={{ backgroundColor: C.bg, padding: "1.5rem" }}>
+          {chosenConsultant && (
             <>
-              <div className="d-flex gap-2 mb-4 flex-wrap">
-                {[{ label: "Consultant", value: selectedConsultant.name }, { label: "Period", value: getMonthLabel(selectedMonth) }].map(m => (
-                  <div key={m.label} className="p-2 bg-light rounded flex-grow-1">
-                    <div className="text-muted small text-uppercase">{m.label}</div>
-                    <div className="fw-bold small">{m.value}</div>
+              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
+                {[
+                  { label: "Consultant", value: chosenConsultant.name },
+                  { label: "Period", value: monthLabel(chosenMonth) },
+                  { label: "Total Pay", value: fmtGBP(grandTotals.total) },
+                ].map((m) => (
+                  <div key={m.label} style={{ flex: 1, padding: "0.85rem 1rem", backgroundColor: "#fff", borderRadius: "10px", border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: "0.65rem", color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>{m.label}</div>
+                    <div style={{ fontWeight: 700, fontSize: "0.9rem", color: C.dark }}>{m.value}</div>
                   </div>
                 ))}
               </div>
-              {filteredTimesheets.map((ts, idx) => {
-                const breakdown = buildClientBreakdown(entriesMap[ts.timesheetID] || [], clientsById, assignmentsMap[ts.timesheetID] || {}, selectedConsultant.daily_rate);
+
+              {visibleSheets.map((ts, i) => {
+                const breakdown = buildBreakdown(
+                  entriesMap[ts.timesheetID] || [],
+                  clientMap,
+                  ratesMap[ts.timesheetID] || {},
+                  chosenConsultant.daily_rate
+                );
                 return (
-                  <div key={ts.timesheetID} className={idx > 0 ? "mt-4" : ""}>
-                    <div className="fw-bold text-info small mb-1">Week {formatDate(ts.weekCommencing)}</div>
-                    <div className="table-responsive border rounded">
-                      <table className="table table-sm mb-0 small">
-                        <thead className="table-light"><tr><th>Client</th><th>Rate</th><th>Total</th></tr></thead>
-                        <tbody>{breakdown.map((b, i) => <tr key={i}><td>{b.label}</td><td>{formatMoney(b.rate)}</td><td className="fw-bold">{formatMoney(b.totalPay)}</td></tr>)}</tbody>
+                  <div key={ts.timesheetID} style={{ marginTop: i > 0 ? "1.25rem" : 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.78rem", color: C.bright, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>
+                      Week commencing {fmtDate(ts.weekCommencing)}
+                    </div>
+                    <div style={{ backgroundColor: "#fff", borderRadius: "8px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                      <table style={{ ...styles.table, fontSize: "0.82rem" }}>
+                        <thead>
+                          <tr style={{ backgroundColor: C.dark }}>
+                            {["Client", "Daily Rate", "Std Hrs", "OT Hrs", "Total"].map((h) => (
+                              <th key={h} style={{ ...styles.th, color: "rgba(255,255,255,0.65)", backgroundColor: "transparent" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {breakdown.map((b, idx) => (
+                            <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? "#fafcfc" : "#fff" }}>
+                              <td style={{ ...styles.td, padding: "0.55rem 1rem" }}>{b.label}</td>
+                              <td style={{ ...styles.td, padding: "0.55rem 1rem" }}>{fmtGBP(b.dailyRate)}</td>
+                              <td style={{ ...styles.td, padding: "0.55rem 1rem" }}>{b.stdHrs}h</td>
+                              <td style={{ ...styles.td, padding: "0.55rem 1rem" }}>{b.otHrs}h</td>
+                              <td style={{ ...styles.td, padding: "0.55rem 1rem", fontWeight: 700, color: C.mid }}>{fmtGBP(b.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
                       </table>
                     </div>
                   </div>
                 );
               })}
-              <div className="d-flex justify-content-between mt-4 p-3 bg-light rounded fw-bold text-info"><span>Grand Total</span><span>{formatMoney(totals.pay)}</span></div>
             </>
           )}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="outline-secondary" onClick={() => setShowPayslip(false)}>Close</Button>
-          <Button variant="info" className="text-white" onClick={handleDownloadPDF}><FontAwesomeIcon icon={faDownload} className="me-2" />PDF</Button>
-          {!payslipDone && <Button variant="primary" disabled={generating} onClick={handleGeneratePayslip}>{generating ? <Spinner size="sm"/> : "Mark as Paid"}</Button>}
+        <Modal.Footer style={{ backgroundColor: "#fff", borderTop: `1px solid ${C.border}` }}>
+          <Button variant="outline-secondary" size="sm" onClick={() => setModalOpen(false)}>Close</Button>
+          <Button size="sm" style={{ backgroundColor: C.mid, border: "none", fontWeight: 700 }} onClick={downloadPDF}>
+            <FontAwesomeIcon icon={faDownload} className="me-1" /> Download PDF
+          </Button>
+          {!payDone && (
+            <Button size="sm" style={{ backgroundColor: C.dark, border: "none", fontWeight: 700 }} disabled={processing} onClick={handleGeneratePayslip}>
+              {processing ? <Spinner size="sm" /> : "Mark as Paid"}
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
     </div>
