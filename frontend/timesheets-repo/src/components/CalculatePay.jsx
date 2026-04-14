@@ -130,13 +130,12 @@ const styles = {
     fontFamily: "'Segoe UI', system-ui, sans-serif",
   },
   header: {
-    backgroundColor: C.dark,
+    background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)",
     padding: "0 2rem",
     height: "64px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottom: `3px solid ${C.bright}`,
   },
   headerTitle: {
     fontSize: "1.25rem",
@@ -454,6 +453,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const [histRates, setHistRates] = useState({});
   const [histLoading, setHistLoading] = useState(false);
   const [paySnapshot, setPaySnapshot] = useState(null); // frozen copy of sheets/entries/rates at pay time
+  const [histMonthFilter, setHistMonthFilter] = useState("all");
+  const [histSort, setHistSort] = useState("desc"); // "desc" = newest first, "asc" = oldest first
 
   // Initial data load
   useEffect(() => {
@@ -566,6 +567,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     setRatesMap({});
     setPayDone(false);
     setPaySnapshot(null);
+    setHistMonthFilter("all");
     if (c) { fetchEntries(c, chosenMonth); fetchHistory(c); }
   };
 
@@ -940,13 +942,26 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     <div style={styles.page}>
 
       {/* ── Header ── */}
-      <div style={styles.header}>
-        <h1 style={styles.headerTitle}>Welcome, {userLabel}</h1>
-        <div style={styles.headerRight}>
+      <div
+        className="text-white px-5 pt-4 pb-4"
+        style={{ background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)", position: "relative" }}
+      >
+        <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
           <NotificationBell userId={user?.userID} />
-          <span style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.75)" }}>{userLabel}</span>
-          <div style={styles.avatar} onClick={onProfileClick}>{initials}</div>
+          <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userLabel}</span>
+          <div onClick={onProfileClick} style={{
+            width: "42px", height: "42px", borderRadius: "50%",
+            backgroundColor: "rgba(255,255,255,0.25)",
+            border: "2px solid rgba(255,255,255,0.6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: "700", fontSize: "1rem", cursor: "pointer",
+          }}>
+            {initials}
+          </div>
         </div>
+        <h1 className="fw-bold mb-0" style={{ fontSize: "2.2rem", marginTop: "10px" }}>
+          Welcome, {userLabel}
+        </h1>
       </div>
 
       {/* ── Stat cards ── */}
@@ -1161,34 +1176,102 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                 </span>
               )}
             </div>
+
+            {/* Search + sort controls */}
+            {paidSheets.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}` }}>
+                <select
+                  value={histMonthFilter}
+                  onChange={(e) => setHistMonthFilter(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: `1.5px solid ${C.border}`,
+                    backgroundColor: C.bg,
+                    fontSize: "0.82rem",
+                    color: C.dark,
+                    outline: "none",
+                  }}
+                >
+                  <option value="all">All months</option>
+                  {[...new Set(paidSheets.map((ts) => ts.weekCommencing?.slice(0, 7)))]
+                    .sort((a, b) => b.localeCompare(a))
+                    .map((m) => (
+                      <option key={m} value={m}>{monthLabel(m)}</option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setHistSort(histSort === "desc" ? "asc" : "desc")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: `1.5px solid ${C.border}`,
+                    backgroundColor: "#fff",
+                    color: C.muted,
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {histSort === "desc" ? "↓ Newest first" : "↑ Oldest first"}
+                </button>
+              </div>
+            )}
+
             <div style={styles.historyList}>
               {histLoading ? (
                 <div style={styles.emptyState}><Spinner animation="border" size="sm" style={{ color: C.bright }} /></div>
               ) : paidSheets.length === 0 ? (
                 <div style={styles.emptyState}>No payment history for this consultant.</div>
-              ) : (
-                [...paidSheets]
-                  .sort((a, b) => new Date(b.weekCommencing) - new Date(a.weekCommencing))
-                  .map((ts) => {
-                    const r = histRowCalc(ts);
-                    const ps = payHistory.find((p) => p.timesheet === ts.timesheetID);
-                    return (
-                      <div key={ts.timesheetID} style={styles.histRow}>
-                        <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
-                        <div style={styles.histMeta}>
-                          <span>{r.stdHrs}h std</span>
-                          <span>{r.otHrs}h OT</span>
-                          {ps && <span>Paid {fmtDate(ps.generatedDate)}</span>}
-                        </div>
-                        <div style={styles.histPay}>{fmtGBP(r.total)}</div>
-                        <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
-                          <FontAwesomeIcon icon={faDownload} /> PDF
-                        </button>
+              ) : (() => {
+                const filtered = [...paidSheets]
+                  .filter((ts) => histMonthFilter === "all" || ts.weekCommencing?.startsWith(histMonthFilter))
+                  .sort((a, b) => histSort === "desc"
+                    ? new Date(b.weekCommencing) - new Date(a.weekCommencing)
+                    : new Date(a.weekCommencing) - new Date(b.weekCommencing)
+                  );
+
+                if (filtered.length === 0) return (
+                  <div style={styles.emptyState}>No records for {monthLabel(histMonthFilter)}.</div>
+                );
+
+                return filtered.map((ts) => {
+                  const r = histRowCalc(ts);
+                  const ps = payHistory.find((p) => p.timesheet === ts.timesheetID);
+                  return (
+                    <div key={ts.timesheetID} style={styles.histRow}>
+                      <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
+                      <div style={styles.histMeta}>
+                        <span>{r.stdHrs}h std</span>
+                        <span>{r.otHrs}h OT</span>
+                        {ps && <span>Paid {fmtDate(ps.generatedDate)}</span>}
                       </div>
-                    );
-                  })
-              )}
+                      <div style={styles.histPay}>{fmtGBP(r.total)}</div>
+                      <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
+                        <FontAwesomeIcon icon={faDownload} /> PDF
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
             </div>
+
+            {/* Total paid to date */}
+            {!histLoading && paidSheets.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.85rem 1.25rem", borderTop: `2px solid ${C.border}`, backgroundColor: "#f8fbfc" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 600, color: C.muted }}>
+                  Total paid to date
+                </span>
+                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: C.dark }}>
+                  {fmtGBP(paidSheets.reduce((sum, ts) => sum + histRowCalc(ts).total, 0))}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
