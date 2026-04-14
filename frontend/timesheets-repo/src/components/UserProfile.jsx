@@ -39,7 +39,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
             } catch(error) {
                 console.error("Error fetching user data", error);
                 setMessage("Failed to load user profile");
-                setisError(true);
+                setisError(true); 
             }
         };
         fetchUserdata();
@@ -203,7 +203,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
 
         {Message && (
           <p style={{
-            color: !isError ? '#9DE09D' : '#ff6b6b',
+            color: !isError ? '#9DE09D' : '#ff6b6b', //if there is an error, the message is red
             background: 'rgba(0,0,0,0.25)',
             borderRadius: '8px',
             padding: '10px 16px',
