@@ -35,8 +35,8 @@ def _notify(recipient_user, notif_type, timesheet, message):
             timesheet=timesheet,
             message=message,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[NOTIFY ERROR] Failed to create notification: {e}")
 
 # ──────────────────────────────────────────────────────────────
 # views.py

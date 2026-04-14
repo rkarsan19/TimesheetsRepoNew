@@ -44,7 +44,7 @@ const NotificationBell = ({ userId }) => {
   // Initial load + 30-second poll
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
+    const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
