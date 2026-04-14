@@ -183,7 +183,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     return matchesSearch && matchesStatus;
   });
 
-  const submitted = timesheets.filter((ts) => ts.status === "SUBMITTED").length;
+  const submitted = timesheets.filter((ts) => ts.status === "SUBMITTED" || ts.status === "LATE").length;
   const approved = timesheets.filter((ts) => ts.status === "APPROVED").length;
   const total = timesheets.length;
 
@@ -535,7 +535,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                 </div>
               )}
 
-              {selectedTs.status === 'SUBMITTED' && (
+              {(selectedTs.status === 'SUBMITTED' || selectedTs.status === 'LATE') && (
                 <div className="mt-4" style={{ marginTop: isMobile ? '1.5rem' : undefined }}>
                   <label className="form-label fw-semibold small" style={{ fontSize: isMobile ? '0.85rem' : undefined, marginBottom: isMobile ? '0.75rem' : undefined }}>Reason for rejection</label>
                   <textarea
@@ -565,7 +565,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </Button>
           <Button
             variant="danger"
-            disabled={actionLoading || selectedTs?.status !== "SUBMITTED"}
+            disabled={actionLoading || (selectedTs?.status !== "SUBMITTED" && selectedTs?.status !== "LATE")}
             onClick={() => handleReject(selectedTs.timesheetID)}
             style={{ width: isMobile ? '100%' : 'auto' }}
           >
@@ -575,7 +575,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
           </Button>
           <Button
             variant="success"
-            disabled={actionLoading || selectedTs?.status !== "SUBMITTED"}
+            disabled={actionLoading || (selectedTs?.status !== "SUBMITTED" && selectedTs?.status !== "LATE")}
             onClick={() => handleApprove(selectedTs.timesheetID)}
             style={{ width: isMobile ? '100%' : 'auto' }}
           >

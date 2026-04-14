@@ -141,31 +141,6 @@ function UserProfile({user, setuser, onBack, onLogout}) {
       {onLogout && (
         <button onClick={onLogout} style={{...styles.btn, background: '#0d7a7a', position: 'fixed', top: '20px', right: '20px' }}>Sign out</button>
       )}
-        {/* Sign Out button */}
-        {onLogout && (
-          <button
-            onClick={onLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(192,57,43,0.75)',
-              color: '#fff',
-              border: '1px solid rgba(192,57,43,0.5)',
-              borderRadius: '8px',
-              padding: isMobile ? '7px 14px' : '8px 18px',
-              cursor: 'pointer',
-              fontSize: isMobile ? '0.85rem' : '0.9rem',
-              fontWeight: '500',
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,1)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(192,57,43,0.75)'}
-          >
-            <FontAwesomeIcon icon={faRightFromBracket} />
-            {!isMobile && 'Sign Out'}
-          </button>
-        )}
       </div>
 
 

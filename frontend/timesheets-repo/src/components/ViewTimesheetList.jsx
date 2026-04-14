@@ -133,13 +133,13 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
         {/* STATUS SUMMARY TAGS - Now positioned above the list/card */}
         <div className="d-none d-md-flex gap-2 mb-3">
           <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-info">
-            <span className="text-info">3</span> awaiting review
+            <span className="text-info">{timesheets.filter(ts => ts.status === 'SUBMITTED').length}</span> awaiting review
           </div>
           <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-success">
-            <span className="text-success">5</span> approved
+            <span className="text-success">{timesheets.filter(ts => ts.status === 'APPROVED').length}</span> approved
           </div>
           <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-primary">
-            <span className="text-primary">1</span> paid
+            <span className="text-primary">{timesheets.filter(ts => ts.status === 'PAID').length}</span> paid
           </div>
         </div>
 
