@@ -12,6 +12,8 @@ import NotificationBell from "./NotificationBell";
 
 const API_BASE = "http://localhost:8000/api";
 
+// Appending T00:00:00 forces the date to be parsed as local time.
+// Without it, JS treats the date string as UTC and the displayed date can shift by a day depending on the user's timezone.
 const formatDate = (dateStr) => {
   if (!dateStr) return "—";
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -19,6 +21,8 @@ const formatDate = (dateStr) => {
   });
 };
 
+// Maps internal status values to user-facing labels.
+// REJECTED is shown as "Awaiting Resubmission" so the consultant understands the next action needed.
 const statusLabel = (status) => {
   switch (status) {
     case "REJECTED":  return "Awaiting Resubmission";
@@ -42,10 +46,10 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [statusFilter, setStatusFilter] = useState("");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
-  // Modal state
+  // Controls the full-page loader shown while the initial timesheet list is fetching
   const [pageLoading, setPageLoading] = useState(true);
 
-  // Modal state
+  // selectedTs holds the timesheet object the manager clicked on, which opens the detail modal
   const [selectedTs, setSelectedTs] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
@@ -53,7 +57,8 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
 
-  // Empty-fields confirmation
+  // State for the modal that appears when a manager tries to approve a timesheet with empty hour entries.
+  // emptyDeclinedMode switches the modal from "are you sure?" to the rejection reason form.
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const [emptyConfirmId, setEmptyConfirmId] = useState(null);
   const [emptyDeclinedReason, setEmptyDeclinedReason] = useState('');
@@ -63,10 +68,13 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const fetchTimesheets = async () => {
     try {
       setPageLoading(true);
+      // The 800ms delay is run alongside the API call so the loader always shows for at least 0.8s,
+      // preventing a jarring flash if the response comes back very fast.
       const [response] = await Promise.all([
         axios.get(`${API_BASE}/timesheets/`),
         new Promise(resolve => setTimeout(resolve, 800)),
       ]);
+      // Managers only review submitted or actioned timesheets, not ones still being drafted.
       const nonDraft = response.data.filter((ts) => ts.status !== "DRAFT");
       setTimesheets(nonDraft);
     } catch (error) {
@@ -99,9 +107,13 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     }
   };
 
+  // Returns true if any entry in the list has both 0 standard hours and 0 overtime hours logged.
+  // Used to warn managers before approving a timesheet that looks incomplete.
   const hasEmptyEntries = (entryList) =>
     entryList.some(e => parseFloat(e.hoursWorked) === 0 && parseFloat(e.overtime_hours || 0) === 0);
 
+  // If the timesheet has empty entries, stop and show the confirmation modal instead of approving immediately.
+  // The manager can then choose to approve anyway or send it back with a reason.
   const handleApprove = async (id) => {
     if (hasEmptyEntries(entries)) {
       setEmptyConfirmId(id);
@@ -128,6 +140,8 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     }
   };
 
+  // Manager chose not to approve the timesheet with empty entries.
+  // Switches the confirmation modal to show the rejection reason textarea.
   const handleEmptyConfirmNo = () => {
     setEmptyDeclinedMode(true);
   };
@@ -175,6 +189,8 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     setShowFilterMenu(false);
   };
 
+  // Filters the timesheet list by both the search input (matches name or ID) and the selected status filter.
+  // Both conditions must be true for a timesheet to appear.
   const filteredTimesheets = timesheets.filter((ts) => {
     const matchesSearch =
       ts.consultant_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -183,10 +199,12 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     return matchesSearch && matchesStatus;
   });
 
+  // LATE is treated the same as SUBMITTED for the "awaiting review" count since both need manager action.
   const submitted = timesheets.filter((ts) => ts.status === "SUBMITTED" || ts.status === "LATE").length;
   const approved = timesheets.filter((ts) => ts.status === "APPROVED").length;
   const total = timesheets.length;
 
+  // Returns the full Bootstrap class string for the status badge used in the table rows.
   const statusBadgeClass = (status) => {
     switch (status) {
       case "APPROVED": return "badge rounded-pill bg-success-subtle text-success";
@@ -196,6 +214,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
     }
   };
 
+  // Returns the Bootstrap variant name used by the react-bootstrap Badge component in the modal header.
   const statusVariant = (status) => {
     switch (status) {
       case "APPROVED":  return "success";
