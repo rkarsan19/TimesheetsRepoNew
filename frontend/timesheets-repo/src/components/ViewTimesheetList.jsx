@@ -36,13 +36,20 @@ const StatusBadge = ({ status }) => {
 {/*Gets the list of timesheets and displays them in a table format*/}
 const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
   const [timesheets, setTimesheets] = useState([]);
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true);
   const [consultantName, setConsultantName] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedMonday, setSelectedMonday] = useState('');
   const [modalError, setModalError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     axios.get(`${API_BASE}/consultants/${consultantId}/`)
@@ -103,6 +110,28 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
     deadline.setDate(monday.getDate() + 6);
     return deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
+
+  {/*Returns today's Monday as YYYY-MM-DD — used as the min value on the date picker*/}
+  const getCurrentMonday = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const daysToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + daysToMonday);
+    const y = monday.getFullYear();
+    const m = String(monday.getMonth() + 1).padStart(2, '0');
+    const d = String(monday.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  {/*Returns "Sunday DD Month YYYY at 9:00pm" — shown in the modal as the submission due date*/}
+  const getDueDate = (mondayStr) => {
+    if (!mondayStr) return null;
+    const monday = new Date(mondayStr + 'T00:00:00');
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return sunday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' at 9:00pm';
+  };
   {/*Get the initials for the profile button*/}
   const initials = consultantName ? consultantName.split(' ').map(n => n[0]).join('').toUpperCase() : '?';
   {/*Get the details for the selected timesheet*/}
@@ -114,15 +143,19 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
     <div style={{ minHeight: '100vh', background: '#f4f7f7' }}>
       
       {/* BLUE HEADER BAR */}
-      <div className="text-white px-4 py-4" style={{ background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)' }}>
+      <div className="text-white" style={{
+        background: 'linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)',
+        padding: isMobile ? '14px 16px' : '1.5rem 1.5rem',
+      }}>
         <div className="d-flex justify-content-between align-items-center">
-          <h1 className="fw-bold mb-0" style={{ fontSize: '1.8rem' }}>Welcome, {consultantName}</h1>
-          <div className="d-flex align-items-center gap-3">
+          <h1 className="fw-bold mb-0" style={{ fontSize: isMobile ? '1.3rem' : '1.8rem' }}>Welcome, {consultantName}</h1>
+          <div className="d-flex align-items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
             <NotificationBell userId={userId} />
             <div onClick={onProfileClick} style={{
-              width: '40px', height: '40px', borderRadius: '50%',
+              width: isMobile ? '34px' : '40px', height: isMobile ? '34px' : '40px', borderRadius: '50%',
               backgroundColor: 'rgba(255,255,255,0.25)', border: '2px solid rgba(255,255,255,0.6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', cursor: 'pointer'
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700',
+              fontSize: isMobile ? '0.8rem' : '1rem', cursor: 'pointer',
             }}>
               {initials}
             </div>
@@ -132,8 +165,8 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
 
       <Container fluid className="px-md-5 py-4">
         
-        {/* STATUS SUMMARY TAGS - Now positioned above the list/card */}
-        <div className="d-none d-md-flex gap-2 mb-3">
+        {/* STATUS SUMMARY TAGS */}
+        <div className="d-flex gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
           <div className="bg-white text-dark rounded-2 px-3 py-1 small fw-bold shadow-sm border border-info">
             <span className="text-info">{timesheets.filter(ts => ts.status === 'SUBMITTED').length}</span> awaiting review
           </div>
@@ -205,17 +238,21 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
               {timesheets.map(ts => {
                 const style = STATUS_STYLE[ts.status] || STATUS_STYLE.DRAFT;
                 return (
-                  <div key={ts.timesheetID} className="bg-white rounded-3 shadow-sm p-3" 
+                  <div key={ts.timesheetID} className="bg-white rounded-3 shadow-sm p-3"
                        style={{ borderLeft: `6px solid ${style.border}`, border: '1px solid #eee', borderLeftWidth: '6px' }}>
                     <div className="d-flex justify-content-between align-items-start mb-2">
                       <div>
-                        <h6 className="fw-bold mb-0">{consultantName}</h6>
-                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>ID: #{ts.timesheetID}</div>
+                        <h6 className="fw-bold mb-0" style={{ fontSize: '0.95rem' }}>
+                          Week of {formatDate(ts.weekCommencing)}
+                        </h6>
+                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          Ends {formatDate(ts.weekEnding)}
+                        </div>
                       </div>
                       <StatusBadge status={ts.status} />
                     </div>
                     <div className="mb-3 small">
-                      <strong>Assigned:</strong> {formatDate(ts.weekCommencing)} to {formatDate(ts.weekEnding)}
+                      <strong>Deadline:</strong> {getDeadline(ts.weekCommencing)} · 21:00
                     </div>
                     <Button 
                       className="w-100 border-0 d-flex align-items-center justify-content-center gap-2 py-2" 
@@ -234,17 +271,42 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
       </Container>
 
       {/* NEW TIMESHEET MODAL */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+      <Modal show={showModal} onHide={() => { setShowModal(false); setSelectedMonday(''); setModalError(''); }} centered>
         <Modal.Header closeButton className="border-0 pb-0"><Modal.Title className="fw-bold">New Timesheet</Modal.Title></Modal.Header>
         <Modal.Body>
+          <p className="text-muted small mb-3">Select the Monday of the week you want to create a timesheet for.</p>
           <Form.Group className="mb-3">
             <Form.Label className="small fw-bold text-muted">WEEK COMMENCING (MONDAY)</Form.Label>
-            <Form.Control type="date" value={selectedMonday} onChange={e => setSelectedMonday(e.target.value)} />
+            <Form.Control
+              type="date"
+              value={selectedMonday}
+              min={getCurrentMonday()}
+              onChange={e => {
+                const val = e.target.value;
+                if (!val) { setSelectedMonday(''); setModalError(''); return; }
+                // Snap to Monday of whichever week the user picks
+                const picked = new Date(val + 'T00:00:00');
+                const day = picked.getDay();
+                const daysToMonday = day === 0 ? -6 : 1 - day;
+                const monday = new Date(picked);
+                monday.setDate(picked.getDate() + daysToMonday);
+                const y = monday.getFullYear();
+                const m = String(monday.getMonth() + 1).padStart(2, '0');
+                const d = String(monday.getDate()).padStart(2, '0');
+                setSelectedMonday(`${y}-${m}-${d}`);
+                setModalError('');
+              }}
+            />
           </Form.Group>
+          {selectedMonday && (
+            <div className="px-3 py-2 rounded mb-2" style={{ background: '#e8f4f8', fontSize: '0.85rem', color: '#00789A' }}>
+              <strong>Due:</strong> {getDueDate(selectedMonday)}
+            </div>
+          )}
           {modalError && <Alert variant="danger" className="py-2 small">{modalError}</Alert>}
         </Modal.Body>
         <Modal.Footer className="border-0 pt-0">
-          <Button variant="light" onClick={() => setShowModal(false)}>Cancel</Button>
+          <Button variant="light" onClick={() => { setShowModal(false); setSelectedMonday(''); setModalError(''); }}>Cancel</Button>
           <Button onClick={handleCreateNew} disabled={creating} style={{ background: '#00789A', border: 'none' }}>
             {creating ? <Spinner size="sm" /> : 'Confirm'}
           </Button>

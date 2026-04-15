@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import date, datetime, timedelta
+from django.utils import timezone
 from supabase import create_client
 from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings, Client, Notification
 from .serializers import (
@@ -203,9 +204,10 @@ def createTimesheet(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 6. Submission deadline is the Sunday of that week at 21:00 (9pm)
+        # 6. Submission deadline is the Sunday of that week at 21:00 (9pm).
+        # make_aware converts the naive datetime to UTC using Django's configured timezone.
         sunday = wc_date + timedelta(days=6)
-        submission_deadline = datetime(sunday.year, sunday.month, sunday.day, 21, 0, 0)
+        submission_deadline = timezone.make_aware(datetime(sunday.year, sunday.month, sunday.day, 21, 0, 0))
 
         # 7. Create the Timesheet
         timesheet = Timesheet.objects.create(
@@ -263,7 +265,7 @@ def submitTimesheet(request, pk):
     timesheet.status = 'SUBMITTED'
     timesheet.submitDate = date.today()
     # Check if submitted after Sunday 9pm deadline. Fall back to weekEnding date for old timesheets without a deadline.
-    now = datetime.now()
+    now = timezone.now()
     if timesheet.submissionDeadline:
         if now >= timesheet.submissionDeadline:
             timesheet.status = 'LATE'

@@ -37,6 +37,13 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   const [overtimeLimit, setOvertimeLimit] = useState(null);
   const [rowErrors, setRowErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -94,7 +101,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
     sunday.setDate(monday.getDate() + 6);
     return sunday.toLocaleDateString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-    }) + ' · 17:00';
+    }) + ' · 21:00';
   };
 
   const handleSave = async () => {
@@ -147,7 +154,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: isMobile ? '1rem' : '2rem', fontFamily: 'system-ui, sans-serif' }}>
       <button
         onClick={onBack}
         style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.9rem' }}
@@ -194,7 +201,8 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
       <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', marginBottom: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#333', marginBottom: '1.5rem' }}>Daily hours</div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
           <thead>
             <tr style={{ fontSize: '0.7rem', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               <th style={{ textAlign: 'left', paddingBottom: '12px', width: '13%' }}>Day</th>
@@ -283,6 +291,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
             ))}
           </tbody>
         </table>
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
           <span style={{ fontSize: '0.85rem', color: '#666' }}>Total hours this week</span>

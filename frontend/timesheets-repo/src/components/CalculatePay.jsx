@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { Modal, Button, Spinner } from "react-bootstrap";
+import Loader from "./loadingAni";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileInvoiceDollar,
@@ -57,6 +58,36 @@ function currentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// builds the list of months shown in the month dropdown
+// covers 12 months back and 3 months forward from today
+function getMonthOptions() {
+  const options = [];
+  const now = new Date();
+  for (let i = -12; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    options.push({ value: val, label: monthLabel(val) });
+  }
+  return options;
+}
+
+// returns every Monday in the given "YYYY-MM" month as "YYYY-MM-DD" strings
+function getMondaysInMonth(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const mondays = [];
+  const d = new Date(y, m - 1, 1);
+  // advance to the first Monday of the month
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+  // collect every Monday while still in the same month
+  while (d.getMonth() === m - 1) {
+    mondays.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    );
+    d.setDate(d.getDate() + 7);
+  }
+  return mondays;
+}
+
 // checks if a timesheets week falls inside the selected month
 function isInMonth(ts, monthStr) {
   if (!ts.weekCommencing) return false;
@@ -66,26 +97,15 @@ function isInMonth(ts, monthStr) {
 }
 
 // main pay calculation logic
-// takes one time entry and works out how much the consultant should be paid
-// priority for the daily rate:
-//   1. consultants own base rate (fallback)
-//   2. clients default rate
-//   3. assignments default rate
-//   4. assignments client-specific rate (highest priority)
-function computeEntryPay(entry, clientMap, rateInfo, consultantRate) {
+// the daily rate comes solely from the client linked to the entry.
+// consultants do not have their own rates — clients are what get charged.
+// missingRate is only flagged when an entry has hours but no client rate.
+function computeEntryPay(entry, clientMap) {
   const stdHrs = parseFloat(entry.hoursWorked || 0);
   const otHrs = parseFloat(entry.overtime_hours || 0);
   const clientObj = entry.client ? clientMap[entry.client] : null;
-  const byClient = rateInfo?.byClient || {};
-  const defaultRate = rateInfo?.default || 0;
+  const dailyRate = clientObj ? parseFloat(clientObj.daily_rate || 0) : 0;
 
-  // start from consultants base rate then override if something more specific exists
-  let dailyRate = parseFloat(consultantRate || 0);
-  if (clientObj && parseFloat(clientObj.daily_rate) > 0) dailyRate = parseFloat(clientObj.daily_rate);
-  if (defaultRate > 0) dailyRate = defaultRate;
-  if (entry.client && byClient[entry.client] > 0) dailyRate = byClient[entry.client];
-
-  // hourly rate = daily / 8. OT is 1.5x
   const hourlyRate = dailyRate / HOURS_PER_DAY;
   const stdPay = hourlyRate * stdHrs;
   const otPay = hourlyRate * 1.5 * otHrs;
@@ -98,16 +118,17 @@ function computeEntryPay(entry, clientMap, rateInfo, consultantRate) {
     otPay,
     total: stdPay + otPay,
     clientLabel: clientObj?.name || null,
-    missingRate: dailyRate === 0, // flag so we can warn the user later
+    // only flag missing rate if there are actual hours to pay — sick/holiday days with 0 hours are fine
+    missingRate: dailyRate === 0 && (stdHrs > 0 || otHrs > 0),
   };
 }
 
 // groups entries by client so the payslip shows one row per client
 // each row has the totals for that client (std hrs, ot hrs, pay etc)
-function buildBreakdown(entries, clientMap, rateInfo, consultantRate) {
+function buildBreakdown(entries, clientMap) {
   const groups = {};
   for (const entry of entries) {
-    const pay = computeEntryPay(entry, clientMap, rateInfo, consultantRate);
+    const pay = computeEntryPay(entry, clientMap);
     const key = entry.client ? `c_${entry.client}` : "none";
     const label = pay.clientLabel || "Unassigned";
     if (!groups[key]) {
@@ -448,6 +469,14 @@ const styles = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const FinanceDashboard = ({ user, onProfileClick }) => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // list of all consultants pulled from api
   const [consultants, setConsultants] = useState([]);
   // client data stored as a map so we can look them up quickly by id
@@ -460,9 +489,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const [chosenConsultant, setChosenConsultant] = useState(null);
   const [chosenMonth, setChosenMonth] = useState(currentMonth());
 
-  // entries and rates for the selected consultant/month (keyed by timesheet id)
+  // entries for the selected consultant/month (keyed by timesheet id)
   const [entriesMap, setEntriesMap] = useState({});
-  const [ratesMap, setRatesMap] = useState({});
   const [loadingEntries, setLoadingEntries] = useState(false);
 
   // controls for the payslip modal + marking as paid flow
@@ -474,7 +502,6 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const [payHistory, setPayHistory] = useState([]);
   const [paidSheets, setPaidSheets] = useState([]);
   const [histEntries, setHistEntries] = useState({});
-  const [histRates, setHistRates] = useState({});
   const [histLoading, setHistLoading] = useState(false);
   // we snapshot the sheets before marking as paid so the modal still shows data after
   // (otherwise the timesheets become PAID and get filtered out, giving £0)
@@ -507,44 +534,23 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     })();
   }, []);
 
-  // Load entries for selected consultant + month
+  // Load entries for selected consultant + month.
+  // Rates come from the client on each entry, so no assignment fetch is needed.
   const fetchEntries = useCallback(async (consultant, month) => {
-    // only care about APPROVED timesheets in the chosen month
     const sheets = allTimesheets.filter(
       (ts) => ts.consultant === consultant.consultantId && ts.status === "APPROVED" && isInMonth(ts, month)
     );
-    if (!sheets.length) { setEntriesMap({}); setRatesMap({}); return; }
+    if (!sheets.length) { setEntriesMap({}); return; }
     setLoadingEntries(true);
     try {
-      // fetch entries and assignments for each timesheet at the same time
       const results = await Promise.all(
         sheets.map((ts) =>
-          Promise.all([
-            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/entries/`),
-            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/assignments/`),
-          ]).then(([e, a]) => ({ id: ts.timesheetID, entries: e.data, assignments: a.data }))
+          axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/entries/`).then((res) => ({ id: ts.timesheetID, entries: res.data }))
         )
       );
-      // build two maps keyed by timesheet id
-      const eMap = {}, rMap = {};
-      results.forEach(({ id, entries, assignments }) => {
-        eMap[id] = entries;
-        const byClient = {};
-        let def = 0;
-        // if only one assignment just use that rate as the default
-        if (assignments.length === 1) {
-          def = parseFloat(assignments[0].daily_rate) || 0;
-        } else if (assignments.length > 1) {
-          // multiple assignments = rate can differ per client
-          assignments.forEach((a) => {
-            if (a.client && parseFloat(a.daily_rate) > 0) byClient[a.client] = parseFloat(a.daily_rate);
-          });
-          def = Math.max(...assignments.map((a) => parseFloat(a.daily_rate) || 0), 0);
-        }
-        rMap[id] = { byClient, default: def };
-      });
+      const eMap = {};
+      results.forEach(({ id, entries }) => { eMap[id] = entries; });
       setEntriesMap(eMap);
-      setRatesMap(rMap);
     } catch (e) {
       console.error(e);
     } finally {
@@ -552,7 +558,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     }
   }, [allTimesheets]);
 
-  // Load pay history for selected consultant (same idea as above but for PAID timesheets)
+  // Load pay history for selected consultant (PAID timesheets).
+  // Rates come from the client on each entry, so no assignment fetch is needed.
   const fetchHistory = useCallback(async (consultant) => {
     setHistLoading(true);
     try {
@@ -563,29 +570,15 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
       const paid = tsRes.data.filter((ts) => ts.status === "PAID");
       setPaidSheets(paid);
       setPayHistory(psRes.data);
-      if (!paid.length) { setHistEntries({}); setHistRates({}); return; }
+      if (!paid.length) { setHistEntries({}); return; }
       const results = await Promise.all(
         paid.map((ts) =>
-          Promise.all([
-            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/entries/`),
-            axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/assignments/`),
-          ]).then(([e, a]) => ({ id: ts.timesheetID, entries: e.data, assignments: a.data }))
+          axios.get(`${BASE_URL}/timesheets/${ts.timesheetID}/entries/`).then((res) => ({ id: ts.timesheetID, entries: res.data }))
         )
       );
-      const eMap = {}, rMap = {};
-      results.forEach(({ id, entries, assignments }) => {
-        eMap[id] = entries;
-        const byClient = {};
-        let def = 0;
-        if (assignments.length === 1) def = parseFloat(assignments[0].daily_rate) || 0;
-        else if (assignments.length > 1) {
-          assignments.forEach((a) => { if (a.client) byClient[a.client] = parseFloat(a.daily_rate); });
-          def = Math.max(...assignments.map((a) => parseFloat(a.daily_rate) || 0), 0);
-        }
-        rMap[id] = { byClient, default: def };
-      });
+      const eMap = {};
+      results.forEach(({ id, entries }) => { eMap[id] = entries; });
       setHistEntries(eMap);
-      setHistRates(rMap);
     } catch (e) {
       console.error(e);
     } finally {
@@ -598,7 +591,6 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     const c = consultants.find((c) => c.consultantId === parseInt(id));
     setChosenConsultant(c || null);
     setEntriesMap({});
-    setRatesMap({});
     setPayDone(false);
     setPaySnapshot(null);
     setHistMonthFilter("all"); // reset month filter too
@@ -609,7 +601,6 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const onPickMonth = (m) => {
     setChosenMonth(m);
     setEntriesMap({});
-    setRatesMap({});
     setPayDone(false);
     setPaySnapshot(null);
     if (chosenConsultant) fetchEntries(chosenConsultant, m);
@@ -623,10 +614,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   // calc totals for one timesheet row (std hrs, ot hrs, total pay)
   const rowCalc = (ts) => {
     const entries = entriesMap[ts.timesheetID] || [];
-    const rInfo = ratesMap[ts.timesheetID] || {};
-    const fb = parseFloat(chosenConsultant?.daily_rate || 0);
     return entries.reduce((acc, e) => {
-      const p = computeEntryPay(e, clientMap, rInfo, fb);
+      const p = computeEntryPay(e, clientMap);
       return { stdHrs: acc.stdHrs + p.stdHrs, otHrs: acc.otHrs + p.otHrs, total: acc.total + p.total, missingRate: acc.missingRate || p.missingRate };
     }, { stdHrs: 0, otHrs: 0, total: 0, missingRate: false });
   };
@@ -641,37 +630,52 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   // so we use a frozen snapshot from the moment payment was done
   const modalSheets = payDone && paySnapshot ? paySnapshot.sheets : visibleSheets;
   const modalEntries = payDone && paySnapshot ? paySnapshot.entries : entriesMap;
-  const modalRates = payDone && paySnapshot ? paySnapshot.rates : ratesMap;
   const modalTotals = modalSheets.reduce((acc, ts) => {
     const entries = modalEntries[ts.timesheetID] || [];
-    const rInfo = modalRates[ts.timesheetID] || {};
-    const fb = parseFloat(chosenConsultant?.daily_rate || 0);
     const r = entries.reduce((a, e) => {
-      const p = computeEntryPay(e, clientMap, rInfo, fb);
+      const p = computeEntryPay(e, clientMap);
       return { stdHrs: a.stdHrs + p.stdHrs, otHrs: a.otHrs + p.otHrs, total: a.total + p.total };
     }, { stdHrs: 0, otHrs: 0, total: 0 });
     return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, total: acc.total + r.total };
   }, { stdHrs: 0, otHrs: 0, total: 0 });
 
-  // flags any timesheet where we cant figure out a daily rate at all
-  // these get shown in the warning banner so finance team can fix them
+  // flags any timesheet that has entries with hours but no client rate set.
+  // this means pay can't be calculated for those days.
   const badRateSheets = visibleSheets.filter((ts) => {
-    const ri = ratesMap[ts.timesheetID];
-    if (ri && (ri.default > 0 || Object.keys(ri.byClient).length > 0)) return false;
     const entries = entriesMap[ts.timesheetID] || [];
-    const hasClientRate = entries.some((e) => e.client && clientMap[e.client] && parseFloat(clientMap[e.client].daily_rate) > 0);
-    return !hasClientRate && parseFloat(chosenConsultant?.daily_rate || 0) === 0;
+    return entries.some((e) => {
+      const hasHours = parseFloat(e.hoursWorked || 0) > 0 || parseFloat(e.overtime_hours || 0) > 0;
+      const clientObj = e.client ? clientMap[e.client] : null;
+      return hasHours && (!clientObj || parseFloat(clientObj.daily_rate || 0) === 0);
+    });
   });
 
-  // only allow generate payslip when theres stuff to pay, not loading, not already done, and no missing rates
-  const canPay = visibleSheets.length > 0 && !loadingEntries && !payDone && badRateSheets.length === 0;
+  // check every Monday in the selected month against the consultant's timesheets.
+  // a week is "missing" if no timesheet exists for it at all.
+  // a week is "not approved" if a timesheet exists but hasn't reached APPROVED status yet.
+  // all weeks must be approved before a payslip can be generated.
+  const mondaysInMonth = chosenConsultant ? getMondaysInMonth(chosenMonth) : [];
+  const consultantSheets = chosenConsultant
+    ? allTimesheets.filter((ts) => ts.consultant === chosenConsultant.consultantId)
+    : [];
+
+  const missingWeeks = mondaysInMonth.filter(
+    (monday) => !consultantSheets.some((ts) => ts.weekCommencing === monday)
+  );
+  const unapprovedWeeks = mondaysInMonth.filter((monday) => {
+    const ts = consultantSheets.find((ts) => ts.weekCommencing === monday);
+    return ts && ts.status !== "APPROVED" && ts.status !== "PAID";
+  });
+
+  const hasIncompleteMonth = missingWeeks.length > 0 || unapprovedWeeks.length > 0;
+
+  // only allow generate payslip when theres stuff to pay, not loading, not already done, no missing rates, and all weeks are approved
+  const canPay = visibleSheets.length > 0 && !loadingEntries && !payDone && badRateSheets.length === 0 && !hasIncompleteMonth;
 
   const histRowCalc = (ts) => {
     const entries = histEntries[ts.timesheetID] || [];
-    const rInfo = histRates[ts.timesheetID] || {};
-    const fb = parseFloat(chosenConsultant?.daily_rate || 0);
     return entries.reduce((acc, e) => {
-      const p = computeEntryPay(e, clientMap, rInfo, fb);
+      const p = computeEntryPay(e, clientMap);
       return { stdHrs: acc.stdHrs + p.stdHrs, otHrs: acc.otHrs + p.otHrs, total: acc.total + p.total };
     }, { stdHrs: 0, otHrs: 0, total: 0 });
   };
@@ -689,7 +693,6 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     setPaySnapshot({
       sheets: [...visibleSheets],
       entries: { ...entriesMap },
-      rates: { ...ratesMap },
     });
     try {
       // first create a payslip for each timesheet
@@ -772,8 +775,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
 
     modalSheets.forEach((ts) => {
       const entries = modalEntries[ts.timesheetID] || [];
-      const rInfo = modalRates[ts.timesheetID] || {};
-      const breakdown = buildBreakdown(entries, clientMap, rInfo, chosenConsultant.daily_rate);
+      const breakdown = buildBreakdown(entries, clientMap);
 
       // Week heading
       doc.setFontSize(10);
@@ -870,8 +872,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     const rowAlt = [245, 250, 251];
 
     const entries = histEntries[ts.timesheetID] || [];
-    const rInfo = histRates[ts.timesheetID] || {};
-    const breakdown = buildBreakdown(entries, clientMap, rInfo, chosenConsultant.daily_rate);
+    const breakdown = buildBreakdown(entries, clientMap);
     const r = histRowCalc(ts);
 
     // ── Header bar ──
@@ -982,7 +983,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   if (loading) {
     return (
       <div style={{ ...styles.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Spinner animation="border" style={{ color: "#005f7a" }} />
+        <Loader />
       </div>
     );
   }
@@ -992,29 +993,33 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
 
       {/* ── Header ── */}
       <div
-        className="text-white px-5 pt-4 pb-4"
-        style={{ background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)", position: "relative" }}
+        className="text-white"
+        style={{
+          background: "linear-gradient(90deg, #00789A 0%, #2DB5AA 100%)",
+          position: "relative",
+          padding: isMobile ? "14px 16px" : "1rem 2rem 1.25rem",
+        }}
       >
-        <div className="position-absolute d-flex align-items-center gap-2" style={{ top: "20px", right: "30px" }}>
+        <div className="position-absolute d-flex align-items-center" style={{ gap: isMobile ? "8px" : "10px", top: isMobile ? "12px" : "18px", right: isMobile ? "12px" : "30px" }}>
           <NotificationBell userId={user?.userID} />
-          <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userLabel}</span>
+          {!isMobile && <span style={{ fontSize: "0.9rem", opacity: 0.9 }}>{userLabel}</span>}
           <div onClick={onProfileClick} style={{
-            width: "42px", height: "42px", borderRadius: "50%",
+            width: isMobile ? "34px" : "42px", height: isMobile ? "34px" : "42px", borderRadius: "50%",
             backgroundColor: "rgba(255,255,255,0.25)",
             border: "2px solid rgba(255,255,255,0.6)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: "700", fontSize: "1rem", cursor: "pointer",
+            fontWeight: "700", fontSize: isMobile ? "0.8rem" : "1rem", cursor: "pointer",
           }}>
             {initials}
           </div>
         </div>
-        <h1 className="fw-bold mb-0" style={{ fontSize: "2.2rem", marginTop: "10px" }}>
+        <h1 className="fw-bold mb-0" style={{ fontSize: isMobile ? "1.3rem" : "2.2rem", marginTop: isMobile ? 0 : "10px" }}>
           Welcome, {userLabel}
         </h1>
       </div>
 
       {/* ── Stat cards ── */}
-      <div style={styles.statsGrid}>
+      <div style={{ ...styles.statsGrid, gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", padding: isMobile ? "1rem 1rem 0" : styles.statsGrid.padding }}>
         <div style={styles.statCard(C.bright)}>
           <div style={styles.statIcon(`${C.bright}22`)}>
             <FontAwesomeIcon icon={faFileInvoiceDollar} style={{ color: C.bright, fontSize: "1.1rem" }} />
@@ -1045,7 +1050,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={styles.filterBar}>
+      <div style={{ ...styles.filterBar, margin: isMobile ? "1rem 1rem 0" : styles.filterBar.margin, padding: isMobile ? "1rem" : styles.filterBar.padding }}>
         <div style={styles.filterGroup}>
           <label style={styles.filterLabel}>
             <FontAwesomeIcon icon={faUsers} style={{ marginRight: "0.3rem" }} />Consultant
@@ -1065,12 +1070,15 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
           <label style={styles.filterLabel}>
             <FontAwesomeIcon icon={faCalendarAlt} style={{ marginRight: "0.3rem" }} />Month
           </label>
-          <input
-            type="month"
+          <select
             style={styles.filterSelect}
             value={chosenMonth}
             onChange={(e) => onPickMonth(e.target.value)}
-          />
+          >
+            {getMonthOptions().map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
         {chosenConsultant && (
           <div style={styles.consultantChip}>
@@ -1085,15 +1093,39 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
       </div>
 
       {/* ── Main content ── */}
-      <div style={styles.bodyWrap}>
+      <div style={{ ...styles.bodyWrap, padding: isMobile ? "1rem" : styles.bodyWrap.padding }}>
+
+        {/* Incomplete month warning — shown when not every Monday in the month has an approved timesheet */}
+        {hasIncompleteMonth && chosenConsultant && (
+          <div style={styles.warningBanner}>
+            <FontAwesomeIcon icon={faTriangleExclamation} style={{ color: C.warning, marginTop: "2px", flexShrink: 0 }} />
+            <div>
+              <strong>Payslip cannot be generated yet</strong> — not all timesheets for {monthLabel(chosenMonth)} are approved.
+              {missingWeeks.length > 0 && (
+                <div style={{ marginTop: "0.35rem" }}>
+                  <strong>Missing ({missingWeeks.length}):</strong>{" "}
+                  {missingWeeks.map((d) => `Week of ${fmtDate(d)}`).join(", ")}
+                </div>
+              )}
+              {unapprovedWeeks.length > 0 && (
+                <div style={{ marginTop: "0.35rem" }}>
+                  <strong>Not yet approved ({unapprovedWeeks.length}):</strong>{" "}
+                  {unapprovedWeeks.map((d) => `Week of ${fmtDate(d)}`).join(", ")}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Missing rate warning */}
         {badRateSheets.length > 0 && (
           <div style={styles.warningBanner}>
             <FontAwesomeIcon icon={faTriangleExclamation} style={{ color: C.warning, marginTop: "2px", flexShrink: 0 }} />
             <div>
-              <strong>No daily rate set</strong> — pay can't be calculated for:{" "}
-              <strong>{badRateSheets.map((ts) => `Week of ${fmtDate(ts.weekCommencing)}`).join(", ")}</strong>. Ask an admin to add a rate.
+              <strong>Pay rate missing for {chosenConsultant?.name}</strong> — a daily rate must be set before a payslip can be generated.
+              Affected {badRateSheets.length === 1 ? "week" : "weeks"}:{" "}
+              <strong>{badRateSheets.map((ts) => `Week of ${fmtDate(ts.weekCommencing)}`).join(", ")}</strong>.
+              Please set a daily rate on the consultant's profile to proceed.
             </div>
           </div>
         )}
@@ -1119,8 +1151,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
               <div style={{ fontSize: "0.8rem" }}>Choose a consultant above to see their timesheets.</div>
             </div>
           ) : loadingEntries ? (
-            <div style={styles.emptyState}>
-              <Spinner animation="border" size="sm" style={{ color: C.bright }} />
+            <div style={{ ...styles.emptyState, display: "flex", justifyContent: "center" }}>
+              <Loader />
             </div>
           ) : (
             <>
@@ -1128,7 +1160,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                 <table style={styles.table}>
                   <thead>
                     <tr>
-                      {["ID", "Week Commencing", "Week Ending", "Std Hours", "OT Hours", "Clients", "Total Pay"].map((h) => (
+                      {["Week Commencing", "Week Ending", "Std Hours", "OT Hours", "Clients", "Total Pay"].map((h) => (
                         <th key={h} style={styles.th}>{h}</th>
                       ))}
                     </tr>
@@ -1136,7 +1168,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                   <tbody>
                     {visibleSheets.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ ...styles.td, textAlign: "center", color: C.muted, padding: "2.5rem" }}>
+                        <td colSpan={6} style={{ ...styles.td, textAlign: "center", color: C.muted, padding: "2.5rem" }}>
                           No approved timesheets for {monthLabel(chosenMonth)}.
                         </td>
                       </tr>
@@ -1150,7 +1182,6 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                         )];
                         return (
                           <tr key={ts.timesheetID} style={{ backgroundColor: idx % 2 === 1 ? "#fafcfc" : "#fff" }}>
-                            <td style={{ ...styles.td, color: "#ccc", fontSize: "0.78rem" }}>#{ts.timesheetID}</td>
                             <td style={{ ...styles.td, fontWeight: 500 }}>{fmtDate(ts.weekCommencing)}</td>
                             <td style={styles.td}>{fmtDate(ts.weekEnding)}</td>
                             <td style={styles.td}>{r.stdHrs.toFixed(1)}h</td>
@@ -1171,7 +1202,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                   {visibleSheets.length > 0 && (
                     <tfoot>
                       <tr>
-                        <td colSpan={3} style={styles.tfootTd}>Totals</td>
+                        <td colSpan={2} style={styles.tfootTd}>Totals</td>
                         <td style={styles.tfootTd}>{grandTotals.stdHrs.toFixed(1)}h</td>
                         <td style={styles.tfootTd}>{grandTotals.otHrs.toFixed(1)}h</td>
                         <td style={styles.tfootTd}></td>
@@ -1273,7 +1304,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
 
             <div style={styles.historyList}>
               {histLoading ? (
-                <div style={styles.emptyState}><Spinner animation="border" size="sm" style={{ color: C.bright }} /></div>
+                <div style={{ ...styles.emptyState, display: "flex", justifyContent: "center" }}><Loader /></div>
               ) : paidSheets.length === 0 ? (
                 <div style={styles.emptyState}>No payment history for this consultant.</div>
               ) : (() => {
@@ -1292,17 +1323,22 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
                   const r = histRowCalc(ts);
                   const ps = payHistory.find((p) => p.timesheet === ts.timesheetID);
                   return (
-                    <div key={ts.timesheetID} style={styles.histRow}>
-                      <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
-                      <div style={styles.histMeta}>
-                        <span>{r.stdHrs}h std</span>
-                        <span>{r.otHrs}h OT</span>
+                    <div key={ts.timesheetID} style={{ ...styles.histRow, flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? "0.5rem" : "1rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: isMobile ? "100%" : "auto" }}>
+                        <div style={styles.histWeek}>{fmtDate(ts.weekCommencing)}</div>
+                        {isMobile && <div style={{ ...styles.histPay, marginLeft: 0 }}>{fmtGBP(r.total)}</div>}
+                      </div>
+                      <div style={{ ...styles.histMeta, flexWrap: "wrap" }}>
+                        <span>{r.stdHrs.toFixed(1)}h std</span>
+                        <span>{r.otHrs.toFixed(1)}h OT</span>
                         {ps && <span>Paid {fmtDate(ps.generatedDate)}</span>}
                       </div>
-                      <div style={styles.histPay}>{fmtGBP(r.total)}</div>
-                      <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
-                        <FontAwesomeIcon icon={faDownload} /> PDF
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-end" }}>
+                        {!isMobile && <div style={styles.histPay}>{fmtGBP(r.total)}</div>}
+                        <button style={styles.histDlBtn} onClick={() => downloadHistPDF(ts)}>
+                          <FontAwesomeIcon icon={faDownload} /> PDF
+                        </button>
+                      </div>
                     </div>
                   );
                 });
@@ -1336,7 +1372,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
         <Modal.Body style={{ backgroundColor: C.bg, padding: "1.5rem" }}>
           {chosenConsultant && (
             <>
-              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexDirection: isMobile ? "column" : "row" }}>
                 {[
                   { label: "Consultant", value: chosenConsultant.name },
                   { label: "Period", value: monthLabel(chosenMonth) },
@@ -1350,12 +1386,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
               </div>
 
               {modalSheets.map((ts, i) => {
-                const breakdown = buildBreakdown(
-                  modalEntries[ts.timesheetID] || [],
-                  clientMap,
-                  modalRates[ts.timesheetID] || {},
-                  chosenConsultant.daily_rate
-                );
+                const breakdown = buildBreakdown(modalEntries[ts.timesheetID] || [], clientMap);
                 return (
                   <div key={ts.timesheetID} style={{ marginTop: i > 0 ? "1.25rem" : 0 }}>
                     <div style={{ fontWeight: 700, fontSize: "0.78rem", color: C.bright, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>

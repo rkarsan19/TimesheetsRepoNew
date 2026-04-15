@@ -44,6 +44,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const [timesheets, setTimesheets] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // Controls the full-page loader shown while the initial timesheet list is fetching
@@ -186,18 +187,36 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("");
+    setMonthFilter("");
     setShowFilterMenu(false);
   };
 
-  // Filters the timesheet list by both the search input (matches name or ID) and the selected status filter.
-  // Both conditions must be true for a timesheet to appear.
-  const filteredTimesheets = timesheets.filter((ts) => {
-    const matchesSearch =
-      ts.consultant_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ts.timesheetID?.toString().includes(searchTerm);
-    const matchesStatus = statusFilter ? ts.status === statusFilter : true;
-    return matchesSearch && matchesStatus;
-  });
+  // Derive a sorted list of unique year-month strings from the loaded timesheets for the month dropdown.
+  const availableMonths = [...new Set(
+    timesheets
+      .filter(ts => ts.weekCommencing)
+      .map(ts => ts.weekCommencing.slice(0, 7))
+  )].sort((a, b) => b.localeCompare(a));
+
+  // Format "YYYY-MM" as "Month YYYY" for display in the dropdown.
+  const formatMonthLabel = (ym) => {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  };
+
+  // Filters by search term, status, and month, then sorts by weekCommencing newest first.
+  const filteredTimesheets = timesheets
+    .filter((ts) => {
+      const matchesSearch = ts.consultant_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter ? ts.status === statusFilter : true;
+      const matchesMonth = monthFilter ? ts.weekCommencing?.startsWith(monthFilter) : true;
+      return matchesSearch && matchesStatus && matchesMonth;
+    })
+    .sort((a, b) => {
+      if (!a.weekCommencing) return 1;
+      if (!b.weekCommencing) return -1;
+      return b.weekCommencing.localeCompare(a.weekCommencing);
+    });
 
   // LATE is treated the same as SUBMITTED for the "awaiting review" count since both need manager action.
   const submitted = timesheets.filter((ts) => ts.status === "SUBMITTED" || ts.status === "LATE").length;
@@ -289,7 +308,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
               type="text"
               value={searchTerm}
               className="form-control border-0 text-white ps-5"
-              placeholder="Search consultant or ID"
+              placeholder="Search for consultant"
               style={{ backgroundColor: "#3a3a3a", width: isMobile ? '100%' : "220px", borderRadius: "6px" }}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -323,6 +342,18 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
             )}
           </div>
 
+          <select
+            value={monthFilter}
+            onChange={e => setMonthFilter(e.target.value)}
+            className="form-select border-0 text-white"
+            style={{ backgroundColor: "#3a3a3a", width: isMobile ? '100%' : '160px', borderRadius: "6px", fontSize: '0.9rem', color: monthFilter ? '#fff' : 'rgba(255,255,255,0.7)' }}
+          >
+            <option value="">All Months</option>
+            {availableMonths.map(ym => (
+              <option key={ym} value={ym}>{formatMonthLabel(ym)}</option>
+            ))}
+          </select>
+
           <button
             className="btn btn-outline-secondary d-flex align-items-center gap-2"
             style={{ borderRadius: "6px", width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-start' }}
@@ -345,6 +376,18 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                 className="btn-close btn-close-white ms-1"
                 style={{ fontSize: "0.55rem" }}
                 aria-label="Remove filter"
+              />
+            </div>
+          )}
+
+          {monthFilter && (
+            <div className="d-flex align-items-center gap-1 px-3 py-1 rounded-pill text-white" style={{ backgroundColor: "#2DB5AA", fontSize: "0.8rem" }}>
+              <span>{formatMonthLabel(monthFilter)}</span>
+              <button
+                onClick={() => setMonthFilter("")}
+                className="btn-close btn-close-white ms-1"
+                style={{ fontSize: "0.55rem" }}
+                aria-label="Remove month filter"
               />
             </div>
           )}
@@ -385,9 +428,6 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                           <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a202c', marginBottom: '4px' }}>
                             {ts.consultant_name ?? "—"}
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: '#718096', marginBottom: '8px' }}>
-                            ID: {ts.timesheetID}
-                          </div>
                         </div>
                         <span className={statusBadgeClass(ts.status)} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
                           {statusLabel(ts.status)}
@@ -426,7 +466,6 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
               <table className="table table-hover align-middle mb-0">
                 <thead className="text-secondary" style={{ fontSize: "0.9rem" }}>
                   <tr>
-                    <th style={{ whiteSpace: 'nowrap' }}>ID</th>
                     <th style={{ whiteSpace: 'nowrap' }}>Consultant</th>
                     <th style={{ whiteSpace: 'nowrap' }}>Week Commencing</th>
                     <th style={{ whiteSpace: 'nowrap' }}>Week Ending</th>
@@ -438,12 +477,11 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
                 <tbody>
                   {filteredTimesheets.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center text-secondary py-4">No timesheets found.</td>
+                      <td colSpan={6} className="text-center text-secondary py-4">No timesheets found.</td>
                     </tr>
                   ) : (
                     filteredTimesheets.map((ts) => (
                       <tr key={ts.timesheetID}>
-                        <td>{ts.timesheetID}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{ts.consultant_name ?? "—"}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{formatDate(ts.weekCommencing)}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{formatDate(ts.weekEnding)}</td>
@@ -473,7 +511,7 @@ const ReviewTimesheets = ({ user, onLogout, onProfileClick }) => {
       {/* CHANGE THIS LINE */}
       <Modal show={!!selectedTs} onHide={() => setSelectedTs(null)} size={isMobile ? "lg" : "xl"} centered><Modal.Header closeButton style={{ borderBottom: '1px solid #e9ecef', padding: isMobile ? '1rem' : '1.25rem 1.5rem' }}>
           <Modal.Title className="d-flex align-items-center gap-2" style={{ fontSize: isMobile ? '0.95rem' : undefined }}>
-            <span>Timesheet #{selectedTs?.timesheetID}</span>
+            <span>{selectedTs?.consultant_name}</span>
             <Badge bg={statusVariant(selectedTs?.status)} style={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>{statusLabel(selectedTs?.status)}</Badge>
           </Modal.Title>
         </Modal.Header>
