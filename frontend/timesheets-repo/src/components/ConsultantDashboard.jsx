@@ -458,22 +458,63 @@ const ConsultantDashboard = ({ onNavigate = () => {}, consultantId = 1 }) => {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  // Returns the Monday of the current week as a YYYY-MM-DD string,
+  // used as the min value on the date picker to block past weeks.
+  const getCurrentMonday = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const daysToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + daysToMonday);
+    const y = monday.getFullYear();
+    const m = String(monday.getMonth() + 1).padStart(2, '0');
+    const d = String(monday.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  // Returns "Sunday DD Month YYYY at 9:00pm" for a given Monday string.
+  const getDueDate = (mondayStr) => {
+    if (!mondayStr) return null;
+    const monday = new Date(mondayStr + 'T00:00:00');
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return sunday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' at 9:00pm';
   };
 
   const handleConfirmNew = async () => {
-    if (!selectedMonday) return setNewTimesheetError('Please select a Monday.');
+    if (!selectedMonday) return setNewTimesheetError('Please select a week.');
+
+    const selected = new Date(selectedMonday + 'T00:00:00');
+
+    // Must not be a past week
+    const todayMonday = new Date(getCurrentMonday() + 'T00:00:00');
+    if (selected < todayMonday) {
+      return setNewTimesheetError('You cannot create a timesheet for a past week.');
+    }
+
+    // Compute week ending (Sunday) safely in local time
+    const weekEndDate = new Date(selected);
+    weekEndDate.setDate(selected.getDate() + 6);
+    const pad = n => String(n).padStart(2, '0');
+    const weekEnding = `${weekEndDate.getFullYear()}-${pad(weekEndDate.getMonth() + 1)}-${pad(weekEndDate.getDate())}`;
+
     try {
       setCreating(true);
-      await axios.post(`${API_BASE}/timesheets/create/`, { 
-        consultantId, 
-        weekCommencing: selectedMonday, 
-        weekEnding: new Date(new Date(selectedMonday).setDate(new Date(selectedMonday).getDate() + 6)).toISOString().split('T')[0] 
+      await axios.post(`${API_BASE}/timesheets/create/`, {
+        consultantId,
+        weekCommencing: selectedMonday,
+        weekEnding,
       });
       setShowNewModal(false);
       fetchTimesheets();
-    } catch (err) { setNewTimesheetError('Failed to create.'); }
-    finally { setCreating(false); }
+    } catch (err) {
+      setNewTimesheetError(err.response?.data?.error || 'Failed to create timesheet.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const filteredTimesheets = filterStatus ? timesheets.filter(t => t.status === filterStatus) : timesheets;
@@ -567,18 +608,47 @@ const ConsultantDashboard = ({ onNavigate = () => {}, consultantId = 1 }) => {
       </Container>
 
       {/* New Modal */}
-      <Modal show={showNewModal} onHide={() => setShowNewModal(false)} centered>
+      <Modal show={showNewModal} onHide={() => { setShowNewModal(false); setNewTimesheetError(''); setSelectedMonday(''); }} centered>
         <Modal.Header closeButton className="border-0"><Modal.Title className="fw-bold">New Timesheet</Modal.Title></Modal.Header>
         <Modal.Body>
+          <p className="text-muted small mb-3">Select the Monday of the week you want to create a timesheet for.</p>
           <Form.Group>
             <Form.Label className="small fw-bold">WEEK COMMENCING (MONDAY)</Form.Label>
-            <Form.Control type="date" value={selectedMonday} onChange={e => setSelectedMonday(e.target.value)} />
+            <Form.Control
+              type="date"
+              value={selectedMonday}
+              min={getCurrentMonday()}
+              onChange={e => {
+                const val = e.target.value;
+                if (!val) { setSelectedMonday(''); setNewTimesheetError(''); return; }
+                // Snap to the Monday of whatever week the user picks.
+                // This means picking Tuesday 15th automatically sets Monday 14th.
+                const picked = new Date(val + 'T00:00:00');
+                const day = picked.getDay();
+                const daysToMonday = day === 0 ? -6 : 1 - day;
+                const monday = new Date(picked);
+                monday.setDate(picked.getDate() + daysToMonday);
+                const y = monday.getFullYear();
+                const m = String(monday.getMonth() + 1).padStart(2, '0');
+                const d = String(monday.getDate()).padStart(2, '0');
+                setSelectedMonday(`${y}-${m}-${d}`);
+                setNewTimesheetError('');
+              }}
+            />
           </Form.Group>
+          {/* Show the due date once a Monday is selected */}
+          {selectedMonday && (
+            <div className="mt-2 px-3 py-2 rounded" style={{ background: '#e8f4f8', fontSize: '0.85rem', color: '#00789A' }}>
+              <strong>Due:</strong> {getDueDate(selectedMonday)}
+            </div>
+          )}
           {newTimesheetError && <Alert variant="danger" className="mt-2 py-1 small">{newTimesheetError}</Alert>}
         </Modal.Body>
         <Modal.Footer className="border-0">
-          <Button variant="light" onClick={() => setShowNewModal(false)}>Cancel</Button>
-          <Button onClick={handleConfirmNew} style={{ background: '#00789A', border: 'none' }}>Confirm</Button>
+          <Button variant="light" onClick={() => { setShowNewModal(false); setNewTimesheetError(''); setSelectedMonday(''); }}>Cancel</Button>
+          <Button onClick={handleConfirmNew} disabled={creating} style={{ background: '#00789A', border: 'none' }}>
+            {creating ? <Spinner animation="border" size="sm" /> : 'Confirm'}
+          </Button>
         </Modal.Footer>
       </Modal>
     </div>

@@ -3,7 +3,7 @@ import uuid
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from datetime import date
+from datetime import date, datetime, timedelta
 from supabase import create_client
 from .models import User, Consultant, LineManager, Timesheet, TimesheetEntry, PaySlip, Assignment, SystemSettings, Client, Notification
 from .serializers import (
@@ -165,21 +165,55 @@ def createTimesheet(request):
 
     if not week_commencing or not week_ending:
         return Response(
-            {"error": "Week dates are required."}, 
+            {"error": "Week dates are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 3. Validate the week_commencing date
+    try:
+        wc_date = date.fromisoformat(week_commencing)
+    except ValueError:
+        return Response({"error": "Invalid weekCommencing date."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Timesheets must always start on a Monday.
+    if wc_date.weekday() != 0:
+        return Response(
+            {"error": "Week commencing must be a Monday."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Reject past weeks. Current week is always allowed.
+    today = date.today()
+    current_monday = today - timedelta(days=today.weekday())
+    if wc_date < current_monday:
+        return Response(
+            {"error": "You cannot create a timesheet for a past week."},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        # 3. Fetch the actual Consultant object
+        # 4. Fetch the actual Consultant object
         # We need the object instance to assign it to the ForeignKey
         consultant = Consultant.objects.get(consultantId=consultant_id)
 
-        # 4. Create the Timesheet
+        # 5. Block duplicate timesheets for the same consultant and week
+        if Timesheet.objects.filter(consultant=consultant, weekCommencing=wc_date).exists():
+            return Response(
+                {"error": "You already have a timesheet for this week."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 6. Submission deadline is the Sunday of that week at 21:00 (9pm)
+        sunday = wc_date + timedelta(days=6)
+        submission_deadline = datetime(sunday.year, sunday.month, sunday.day, 21, 0, 0)
+
+        # 7. Create the Timesheet
         timesheet = Timesheet.objects.create(
             consultant=consultant,
             weekCommencing=week_commencing,
             weekEnding=week_ending,
-            status='DRAFT' # Or your default status
+            status='DRAFT',
+            submissionDeadline=submission_deadline,
         )
 
         serializer = TimesheetSerializer(timesheet, many=False)
@@ -228,7 +262,12 @@ def submitTimesheet(request, pk):
         return Response({"error": "Timesheet not found"}, status=status.HTTP_404_NOT_FOUND)
     timesheet.status = 'SUBMITTED'
     timesheet.submitDate = date.today()
-    if timesheet.weekEnding <= timesheet.submitDate:
+    # Check if submitted after Sunday 9pm deadline. Fall back to weekEnding date for old timesheets without a deadline.
+    now = datetime.now()
+    if timesheet.submissionDeadline:
+        if now >= timesheet.submissionDeadline:
+            timesheet.status = 'LATE'
+    elif timesheet.weekEnding and timesheet.weekEnding <= timesheet.submitDate:
         timesheet.status = 'LATE'
     timesheet.save()
 

@@ -32,15 +32,20 @@ function UserProfile({user, setuser, onBack, onLogout}) {
     }, []);
 
     useEffect(() => {
+        // Guard against re-firing after logout clears localStorage (UserID becomes undefined)
+        if (!UserID) return;
+
         const fetchUserdata = async () => { //fetches data for user
             try {
-              const response = await axios.get(`http://localhost:8000/api/users/${UserID}/`); 
+              const response = await axios.get(`http://localhost:8000/api/users/${UserID}/`);
               setFormData(response.data);
-              setuser(response.data);
+              // Do not call setuser here — it would race with logout (async fetch resolves
+              // after handleLogout sets user to null, restoring user and requiring a 2nd click).
+              // setuser is called in handleSubmit after a deliberate save instead.
             } catch(error) {
                 console.error("Error fetching user data", error);
                 setMessage("Failed to load user profile");
-                setisError(true); 
+                setisError(true);
             }
         };
         fetchUserdata();

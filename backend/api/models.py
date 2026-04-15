@@ -85,9 +85,10 @@ class Timesheet(models.Model):
     timesheetID = models.AutoField(primary_key=True)
     consultant = models.ForeignKey(Consultant, on_delete=models.CASCADE)
     lineManager = models.ForeignKey(LineManager, on_delete=models.SET_NULL, null=True, blank=True)
-    weekCommencing = models.DateField(null=True, blank=True)  # Always a Monday
-    weekEnding = models.DateField(null=True, blank=True)      # Always the Sunday of the same week
-    submitDate = models.DateField(null=True, blank=True)      # Set automatically when consultant submits
+    weekCommencing = models.DateField(null=True, blank=True)         # Always a Monday
+    weekEnding = models.DateField(null=True, blank=True)             # Always the Sunday of the same week
+    submitDate = models.DateField(null=True, blank=True)             # Set automatically when consultant submits
+    submissionDeadline = models.DateTimeField(null=True, blank=True) # Sunday of that week at 21:00 (9pm)
     status = models.CharField(max_length=20, choices=STATUS, default='DRAFT')
     comments = models.TextField(blank=True)                   # Dual purpose: consultant notes or rejection reason
 
