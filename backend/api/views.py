@@ -15,8 +15,7 @@ from .serializers import (
 )
 
 
-# ── NOTIFICATION HELPERS ──────────────────────────────────────
-
+# NOTIFICATION HELPERS 
 def _fmt_date(d):
     """Format a date as '6 April 2026' — matches the en-GB long format used
     across the frontend (day: numeric, month: long, year: numeric)."""
@@ -39,16 +38,15 @@ def _notify(recipient_user, notif_type, timesheet, message):
     except Exception as e:
         print(f"[NOTIFY ERROR] Failed to create notification: {e}")
 
-# ──────────────────────────────────────────────────────────────
+# 
 # views.py
 # Contains all the API endpoint logic for the application.
 # Each function handles one HTTP request and returns a JSON
 # response. The @api_view decorator restricts which HTTP methods
 # each endpoint accepts (GET, POST, PUT, etc.).
-# ──────────────────────────────────────────────────────────────
+# 
 
-
-# ── TEST ──────────────────────────────────────────────────────
+# TEST 
 # Simple health-check endpoint. Used to verify the Django server
 # is running and connected. Hit GET /api/test/ to check.
 @api_view(['GET'])
@@ -56,8 +54,7 @@ def test(request):
     return Response({"message": "Django is connected!"})
 
 
-# ── USERS ─────────────────────────────────────────────────────
-
+#  USERS 
 # Returns all users in the system. Used by the admin dashboard.
 @api_view(['GET'])
 def getUsers(request):
@@ -74,7 +71,7 @@ def getUser(request, pk):
     return Response(serializer.data)
 
 
-# Updates a user's details (partial update — only send the fields
+# Updates a user's details (partial update only send the fields
 # you want to change). Used by the admin dashboard.
 @api_view(['PUT'])
 def updateUser(request, pk):
@@ -106,7 +103,7 @@ def getConsultant(request, pk):
         return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-# ── LOGIN ─────────────────────────────────────────────────────
+# LOGIN 
 # Authenticates a user by email and password.
 # Returns the user's data plus role-specific IDs:
 #   - consultantId for CONSULTANT users (needed to fetch their timesheets)
@@ -146,7 +143,7 @@ def login(request):
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-# ── TIMESHEETS ────────────────────────────────────────────────
+# TIMESHEETS 
 
 @api_view(['POST'])
 def createTimesheet(request):
@@ -273,7 +270,7 @@ def submitTimesheet(request, pk):
         timesheet.status = 'LATE'
     timesheet.save()
 
-    # Notify the assigned line manager; fall back to all active line managers.
+    # Notify the assigned line manager,fall back to all active line managers.
     consultant_name = timesheet.consultant.user.name
     week = _fmt_date(timesheet.weekCommencing)
     msg = f"{consultant_name} submitted a timesheet for the week of {week}."
@@ -349,7 +346,7 @@ def approveTimesheet(request, pk):
     # Notify the consultant
     _notify(timesheet.consultant.user, 'APPROVED', timesheet,
             f"Your timesheet for the week of {week} has been approved.")
-    # Notify all Finance users — it's ready for payment
+    # Notify all Finance users,it's ready for payment
     for fu in User.objects.filter(role='FINANCE', isActive=True):
         _notify(fu, 'APPROVED', timesheet,
                 f"{timesheet.consultant.user.name}'s timesheet for the week of {week} is approved and ready for payment.")
@@ -450,7 +447,7 @@ def saveTimesheetEntries(request, pk):
 
 #  CLIENTS
 
-# PUT /api/clients/<id>/rate/  — sets the daily rate for a client
+# PUT /api/clients/<id>/rate/ sets the daily rate for a client
 # Used by the Finance dashboard to configure per-client pay rates.
 @api_view(['PUT'])
 def updateClientRate(request, pk):
@@ -467,8 +464,8 @@ def updateClientRate(request, pk):
     return Response(serializer.data)
 
 
-# GET  /api/clients/  — returns all clients in the master list
-# POST /api/clients/  — creates a new client (admin use)
+# GET  /api/clients/  returns all clients in the master list
+# POST /api/clients/   creates a new client (admin use)
 @api_view(['GET', 'POST'])
 def clients(request):
     if request.method == 'GET':
@@ -483,8 +480,7 @@ def clients(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ── ASSIGNMENTS ───────────────────────────────────────────────
-
+# ASSIGNMENTS 
 # Creates a new assignment record directly via JSON payload.
 @api_view(['POST'])
 def createAssignment(request):
@@ -504,7 +500,7 @@ def getTimesheetAssignments(request, pk):
     return Response(serializer.data)
 
 
-# ── PAYSLIP ───────────────────────────────────────────────────
+#  PAYSLIP 
 
 # Returns all payslips in the system. Used by the Finance dashboard.
 @api_view(['GET'])
@@ -655,8 +651,7 @@ def markTimesheetAsPaid(request, pk):
     return Response(serializer.data)
 
 
-# ── NOTIFICATIONS ─────────────────────────────────────────────
-
+# NOTIFICATIONS 
 # Returns up to 50 most recent notifications for a user, unread first.
 @api_view(['GET'])
 def getNotifications(request, userId):
@@ -688,7 +683,7 @@ def markAllNotificationsRead(request, userId):
     return Response({'status': 'ok'})
 
 
-# ── ADMIN ─────────────────────────────────────────────────────
+# ADMIN 
 
 # Deactivates a user account so they can no longer log in.
 # The account is not deleted — isActive is set to False.
@@ -759,17 +754,17 @@ def overtimeLimit(request):
 #     }, status=status.HTTP_200_OK)
 
 
-# ── PASSWORD RESET (via Supabase Auth) ───────────────────────
+# PASSWORD RESET (via Supabase Authentication) 
 #
-# Flow:
-#   1. User submits email on the Forgot Password screen.
-#   2. We verify the email exists in our User table.
-#   3. We ensure a matching user exists in Supabase Auth (creating one if needed).
-#   4. We call Supabase's reset_password_for_email — Supabase sends the email.
-#   5. The user clicks the link, which redirects to the React app with
-#      an access_token + type=recovery in the URL hash.
-#   6. The React app POSTs the Supabase access_token + new password here.
-#   7. We verify the token with Supabase, find the user in our table, and
+#
+#   User submits email on the Forgot Password screen.
+#   We verify the email exists in our User table.
+#   We ensure a matching user exists in Supabase Auth (creating one if needed).
+#   We call Supabase's reset_password_for_email — Supabase sends the email.
+#   The user clicks the link, which redirects to the React app with
+#   an access_token + type=recovery in the URL hash.
+#   The React app POSTs the Supabase access_token + new password here.
+#   We verify the token with Supabase, find the user in our table, and
 #      update their password.
 
 def _supabase_admin():
@@ -796,7 +791,7 @@ def forgotPassword(request):
     # Always return the same message so we don't reveal whether an email is registered
     generic_response = Response({'message': 'If that email is registered you will receive a reset link shortly.'})
 
-    # Step 1 — check the email exists in our own User table
+    # check the email exists in our own User table
     try:
         user = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
@@ -805,10 +800,10 @@ def forgotPassword(request):
     frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     admin = _supabase_admin()
 
-    # Step 2 — look up the user in Supabase Auth; create them if they don't exist yet
+    # look up the user in Supabase Auth; create them if they don't exist yet
     supabase_user_id = None
     try:
-        # List all auth users and find by email
+        # List all authenticated users and find by email
         auth_users = admin.auth.admin.list_users()
         existing = next((u for u in auth_users if u.email and u.email.lower() == user.email.lower()), None)
 
@@ -832,7 +827,7 @@ def forgotPassword(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    # Step 3 — send the password reset email via Supabase
+    # send the password reset email via Supabase
     try:
         anon = _supabase_anon()
         anon.auth.reset_password_for_email(user.email, {'redirect_to': frontend_url})

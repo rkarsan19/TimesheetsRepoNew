@@ -12,5 +12,11 @@ frontend/timesheets-repo/node_modules/
 # VS Code
 .vscode/
 
+# JetBrains IDE
+.idea/
+
+# Local database
+backend/db.sqlite3
+
 .env
 backend/.env.mcp.json
