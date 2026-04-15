@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import timedimebg from '../assets/TimeDimebg.svg';
 import greenbg from '../assets/login-bg.svg';
 import { faClock, faArrowLeft, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+import logo from "../assets/logo.svg"
 
 function UserProfile({user, setuser, onBack, onLogout}) {
     const [formData, setFormData] = useState({}); //usestate: for editing form data
@@ -146,12 +147,11 @@ function UserProfile({user, setuser, onBack, onLogout}) {
             width: isMobile ? 32 : 40,
             height: isMobile ? 32 : 40,
             borderRadius: '50%',
-            border: '2px solid rgba(255,255,255,0.7)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            <FontAwesomeIcon icon={faClock} style={{ fontSize: isMobile ? '0.85rem' : '1rem' }} />
+            <img src={logo} style={{width: 30, height: 30}}/>
           </div>
           {!isMobile && (
             <span style={{ fontWeight: '600', fontSize: '1rem' }}>TimeDime</span>

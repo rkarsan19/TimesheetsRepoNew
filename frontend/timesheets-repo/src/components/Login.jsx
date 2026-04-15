@@ -83,6 +83,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
             width: isMobile ? 36 : 40,
             height: isMobile ? 36 : 40,
             borderRadius: "50%",
+            background: "linear-gradient(135deg, #00789A, #2DB5AA)",
             display: "flex", alignItems: "center", justifyContent: "center",
             color: "#fff", fontSize: isMobile ? "0.9rem" : "1rem",
           }}>

@@ -9,6 +9,7 @@ import NotificationBell from "./NotificationBell";
 
 const API_BASE = 'http://localhost:8000/api';
 
+{/*Creates colours for status icon based on the status*/}
 const STATUS_STYLE = {
   DRAFT:     { bg: '#fff3cd', color: '#856404', border: '#ffc107' },
   SUBMITTED: { bg: '#cff4fc', color: '#055160', border: '#0dcaf0' },
@@ -18,6 +19,7 @@ const STATUS_STYLE = {
   PAID:      { bg: '#cfe2ff', color: '#084298', border: '#0d6efd' },
 };
 
+{/*Creates the icon for the status using the */}
 const StatusBadge = ({ status }) => {
   const s = STATUS_STYLE[status] || STATUS_STYLE.DRAFT;
   return (
@@ -31,10 +33,10 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
-
+{/*Gets the list of timesheets and displays them in a table format*/}
 const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
   const [timesheets, setTimesheets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
   const [consultantName, setConsultantName] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -60,7 +62,7 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
       setLoading(false);
     }
   };
-
+  {/*Function for the create new Timesheet*/}
   const handleCreateNew = async () => {
     if (!selectedMonday) { setModalError('Please select a week.'); return; }
     setCreating(true);
@@ -79,21 +81,21 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
       setCreating(false);
     }
   };
-
+  {/*Foramt the date to make it look nicer*/}
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
       day: 'numeric', month: 'long', year: 'numeric'
     });
   };
-
+  {/*Get the week ending value*/}
   const getSunday = (mondayStr) => {
     const monday = new Date(mondayStr + 'T00:00:00');
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     return sunday.toISOString().split('T')[0];
   };
-
+  {/*Get the deadline value*/}
   const getDeadline = (weekCommencing) => {
     if (!weekCommencing) return '—';
     const monday = new Date(weekCommencing + 'T00:00:00');
@@ -101,9 +103,9 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
     deadline.setDate(monday.getDate() + 6);
     return deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
-
+  {/*Get the initials for the profile button*/}
   const initials = consultantName ? consultantName.split(' ').map(n => n[0]).join('').toUpperCase() : '?';
-
+  {/*Get the details for the selected timesheet*/}
   if (selectedId !== null) {
     return <TimesheetDetail timesheetId={selectedId} onBack={() => { setSelectedId(null); fetchTimesheets(); }} />;
   }
