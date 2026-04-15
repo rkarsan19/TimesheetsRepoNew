@@ -36,6 +36,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   const [saveMsg, setSaveMsg] = useState('');
   const [overtimeLimit, setOvertimeLimit] = useState(null);
   const [rowErrors, setRowErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -118,6 +119,11 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
 
   const handleSubmit = async () => {
     if (hasErrors) return;
+
+    if (totalHours === 0) {
+      setSubmitError('No Hours Logged! Please enter hours for at least one day before submitting!');
+      return;
+    }
     await handleSave();
     try {
       await axios.put(`${API_BASE}/timesheets/${timesheetId}/submit/`);
@@ -325,6 +331,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
           </button>
           {hasErrors && <span style={{ color: '#c0392b', fontSize: '0.85rem' }}>Fix the errors above before saving.</span>}
           {saveMsg && !hasErrors && <span style={{ color: saveMsg === 'Saved!' ? 'green' : 'red', fontSize: '0.85rem' }}>{saveMsg}</span>}
+          {submitError && <span style={{ color: '#c0392b', fontSize: '0.85rem' }}>⚠ {submitError}</span>}
         </div>
       )}
     </div>

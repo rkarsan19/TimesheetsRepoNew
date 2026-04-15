@@ -147,48 +147,6 @@ def login(request):
 
 # ── TIMESHEETS ────────────────────────────────────────────────
 
-# Creates a new timesheet for a consultant.
-# Expects: consultantId, weekCommencing (Monday date), weekEnding (Sunday date).
-# Prevents duplicate timesheets for the same consultant and week.
-# @api_view(['POST'])
-# def createTimesheet(request):
-#     consultantId = request.data.get('consultantId')
-#     weekCommencing = request.data.get('weekCommencing')
-#     weekEnding = request.data.get('weekEnding')
-
-#     if not consultantId or not weekCommencing or not weekEnding:
-#         return Response(
-#             {'error': 'consultantId, weekCommencing and weekEnding are required'},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-
-#     # Check if a timesheet already exists for this consultant and week
-#     existing = Timesheet.objects.filter(
-#         consultant__consultantId=consultantId,
-#         weekCommencing=weekCommencing
-#     ).exists()
-
-#     if existing:
-#         return Response(
-#             {'error': 'A timesheet already exists for this week'},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-
-#     try:
-#         consultant = Consultant.objects.get(consultantId=consultantId)
-#     except Consultant.DoesNotExist:
-#         return Response({'error': 'Consultant not found'}, status=status.HTTP_404_NOT_FOUND)
-
-#     # Create the timesheet with DRAFT status (consultant hasn't submitted yet)
-#     timesheet = Timesheet.objects.create(
-#         consultant=consultant,
-#         weekCommencing=weekCommencing,
-#         weekEnding=weekEnding,
-#         status='DRAFT'
-#     )
-#     serializer = TimesheetSerializer(timesheet)
-#     return Response(serializer.data, status=status.HTTP_201_CREATED)
-
 @api_view(['POST'])
 def createTimesheet(request):
     data = request.data

@@ -13,18 +13,24 @@ import {
   faTimes
 } from '@fortawesome/free-solid-svg-icons';
 
+// AdminDashboard: main control panel for admins to create users, reset passwords, and deactivate accounts
 function AdminDashboard({ user, onProfileClick }) {
-  const [activeCard, setActiveCard] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeCard, setActiveCard] = useState(null);   // Track which action card is currently expanded
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);  // Responsive state — true when viewport is narrower than 768px
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Controls whether the sidebar drawer is open on mobile
 
+  // Update isMobile whenever the window is resized
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Shared input state used across Reset Password and Deactivate Account actions
   const [userID, setUserID] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  // Feedback message shown after an action completes (success or error)
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
 
@@ -37,12 +43,13 @@ function AdminDashboard({ user, onProfileClick }) {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('consultant');
 
-  const showMessage = (msg, type) => {
+  const showMessage = (msg, type) => { // Displays a temporary feedback message that clears after 4 seconds
     setMessage(msg);
     setMessageType(type);
     setTimeout(() => setMessage(''), 4000);
   };
 
+  // Sends a POST request to create a new user with the provided name, email, password, and role
   const handleCreateUser = () => {
     if (!newUserName || !newUserEmail || !newPassword) {
       showMessage('Please fill in name, email, and password', 'error');
@@ -62,12 +69,14 @@ function AdminDashboard({ user, onProfileClick }) {
         if (data.error) showMessage(data.error, 'error');
         else {
           showMessage('User created successfully!', 'success');
+          // Clear form fields after successful creation
           setNewUserName(''); setNewUserEmail(''); setNewPassword('');
         }
       })
       .catch(() => showMessage('Could not connect to server', 'error'));
   };
 
+  // Sends a PUT request to reset the password for the user matching the entered ID
   const handleReset = () => {
     if (!userID || !newPassword) {
       showMessage('Please fill in all fields', 'error');
@@ -83,12 +92,14 @@ function AdminDashboard({ user, onProfileClick }) {
         if (data.error) showMessage(data.error, 'error');
         else {
           showMessage('Password reset successfully!', 'success');
+          // Clear fields after successful reset
           setUserID(''); setNewPassword('');
         }
       })
       .catch(() => showMessage('Could not connect to server', 'error'));
   };
 
+   // Sends a PUT request to deactivate the account of the user matching the entered ID
   const handleDeactivate = () => {
     if (!userID) {
       showMessage('Please enter a User ID', 'error');
@@ -109,9 +120,11 @@ function AdminDashboard({ user, onProfileClick }) {
       .catch(() => showMessage('Could not connect to server', 'error'));
   };
 
+  // Derive display name and avatar initials from the logged-in user
   const userName = user?.name || "Admin";
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
 
+  // Card definitions — each maps to a sidebar nav item and an expandable action panel
   const cards = [
     { id: 'create', icon: faUserPlus, title: 'Create User', description: 'Add a new employee to the system' },
     { id: 'reset', icon: faKey, title: 'Reset Password', description: 'Reset a user\'s password by their ID' },
@@ -319,6 +332,7 @@ function AdminDashboard({ user, onProfileClick }) {
                     <input type="password" className="form-control mb-3" placeholder="New Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} style={{ borderColor: '#b2e8e0' }} />
                   )}
 
+                  {/* Submit button — calls the appropriate handler based on which card is active */}
                   <button 
                     className="btn w-100 text-white fw-semibold" 
                     style={{ backgroundColor: '#00a896' }}
