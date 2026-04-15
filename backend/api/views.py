@@ -708,7 +708,7 @@ def deactivateUser(request, pk):
 # Resets a user's password to the value provided in the request body.
 # Expects: { "password": "newpassword" }
 @api_view(['PUT'])
-def resetPassword(request, pk):
+def adminResetPassword(request, pk):
     try:
         user = User.objects.get(userID=pk)
         user.password = request.data.get('password')
