@@ -53,19 +53,19 @@ const Login = ({ onLogin, onForgotPassword }) => {
 
   return (
     /*
-     * Key fix: the outer wrapper is the scroll container.
+     * the outer wrapper is the scroll container.
      * On mobile we stack column, let everything flow naturally,
-     * and scroll the whole page — no clipped inner panels.
+     * and scroll the whole page so no clipped inner panels.
      */
     <div style={{
       display: "flex",
       minHeight: "100vh",
       fontFamily: "system-ui, sans-serif",
       flexDirection: isMobile ? "column" : "row",
-      /* No overflow:hidden anywhere — let the browser handle scroll */
+      /* No overflow:hidden anywhere let the browser handle scroll */
     }}>
 
-      {/* ── LEFT / TOP PANEL – white form ── */}
+      {/*  LEFT / TOP PANEL – white form */}
       <div style={{
         width: isMobile ? "100%" : "45%",
         background: "#ffffff",
@@ -74,7 +74,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
         justifyContent: isMobile ? "flex-start" : "center",
         padding: isMobile ? "2.5rem 1.5rem 2rem" : "3rem 4rem",
         boxSizing: "border-box",
-        /* No maxHeight, no overflowY — panel grows with content */
+        /* No maxHeight, no overflowY panel grows with content */
       }}>
 
         {/* Logo */}
@@ -195,7 +195,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
         </form>
       </div>
 
-      {/* ── RIGHT PANEL – desktop only, dark teal with SVG ── */}
+      {/* RIGHT PANEL desktop only, dark teal with SVG */}
       {!isMobile && (
         <div style={{
           width: "55%",
@@ -286,7 +286,7 @@ const Login = ({ onLogin, onForgotPassword }) => {
         </div>
       )}
 
-      {/* ── MOBILE BOTTOM BANNER – extra info, scrollable below the form ── */}
+      {/* MOBILE BOTTOM BANNER extra info, scrollable below the form */}
       {isMobile && (
         <div style={{
           width: "100%",

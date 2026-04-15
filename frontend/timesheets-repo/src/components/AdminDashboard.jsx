@@ -4,10 +4,6 @@ import logo from "../assets/logo.svg"
 import { 
   faKey, 
   faUserSlash, 
-  faPercentage, 
-  faCalendarCheck, 
-  faClock, 
-  faRightFromBracket,
   faUserPlus,
   faBars,
   faTimes
@@ -124,7 +120,7 @@ function AdminDashboard({ user, onProfileClick }) {
   const userName = user?.name || "Admin";
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
 
-  // Card definitions — each maps to a sidebar nav item and an expandable action panel
+  // Card definitions,each maps to a sidebar nav item and an expandable action panel
   const cards = [
     { id: 'create', icon: faUserPlus, title: 'Create User', description: 'Add a new employee to the system' },
     { id: 'reset', icon: faKey, title: 'Reset Password', description: 'Reset a user\'s password by their ID' },
@@ -134,7 +130,7 @@ function AdminDashboard({ user, onProfileClick }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', backgroundColor: '#f0fafa', position: 'relative' }}>
 
-      {/* Mobile Hamburger Button — only shown when sidebar is CLOSED */}
+      {/* Mobile Hamburger Button only shown when sidebar is CLOSED */}
       {isMobile && !sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(true)}
@@ -156,7 +152,7 @@ function AdminDashboard({ user, onProfileClick }) {
         </button>
       )}
 
-      {/* Sidebar Overlay — clicking outside closes sidebar */}
+      {/* Sidebar Overlay clicking outside closes sidebar */}
       {sidebarOpen && isMobile && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -172,7 +168,7 @@ function AdminDashboard({ user, onProfileClick }) {
         />
       )}
 
-      {/* ── SIDEBAR ── */}
+      {/*SIDEBAR*/}
       <div className="d-flex flex-column p-4" style={{ 
         width: '260px', 
         backgroundColor: '#0d7a7a', 
@@ -184,7 +180,7 @@ function AdminDashboard({ user, onProfileClick }) {
         transition: 'left 0.3s ease',
         boxShadow: isMobile && sidebarOpen ? '2px 0 8px rgba(0,0,0,0.2)' : 'none'
       }}>
-        {/* Close button inside sidebar — top right corner */}
+        {/* Close button inside sidebar at the top right corner */}
         {isMobile && (
           <button
             onClick={() => setSidebarOpen(false)}
@@ -245,7 +241,7 @@ function AdminDashboard({ user, onProfileClick }) {
         </div>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* MAIN CONTENT */}
       <div className="flex-grow-1" style={{ padding: isMobile ? '70px 1.5rem 2rem' : '2rem 3rem' }}>
 
         {/* Top-right user profile */}

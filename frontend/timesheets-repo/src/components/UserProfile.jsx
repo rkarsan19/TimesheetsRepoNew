@@ -39,7 +39,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
             try {
               const response = await axios.get(`http://localhost:8000/api/users/${UserID}/`);
               setFormData(response.data);
-              // Do not call setuser here — it would race with logout (async fetch resolves
+              // Do not call setuser here,it would race with logout (async fetch resolves
               // after handleLogout sets user to null, restoring user and requiring a 2nd click).
               // setuser is called in handleSubmit after a deliberate save instead.
             } catch(error) {

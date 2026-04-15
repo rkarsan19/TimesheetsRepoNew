@@ -37,7 +37,7 @@ const NotificationBell = ({ userId }) => {
       const res = await axios.get(`${API_BASE}/notifications/${userId}/`);
       setNotifications(res.data);
     } catch {
-      // silently fail — never crash the page for a notification error
+      // silently fail never crash the page for a notification error
     }
   }, [userId]);
 
@@ -83,7 +83,7 @@ const NotificationBell = ({ userId }) => {
   return (
     <div style={{ position: "relative" }} ref={panelRef}>
 
-      {/* ── Bell button ── */}
+      {/* Bell button */}
       <button
         onClick={() => setOpen((prev) => !prev)}
         title="Notifications"
@@ -124,7 +124,7 @@ const NotificationBell = ({ userId }) => {
         )}
       </button>
 
-      {/* ── Dropdown panel ── */}
+      {/* Dropdown panel*/}
       {open && (
         <div
           style={{

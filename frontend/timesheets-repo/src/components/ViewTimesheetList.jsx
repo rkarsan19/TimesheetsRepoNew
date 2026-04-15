@@ -111,7 +111,7 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
     return deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  {/*Returns today's Monday as YYYY-MM-DD — used as the min value on the date picker*/}
+  {/*Returns today's Monday as YYYY-MM-DD used as the min value on the date picker*/}
   const getCurrentMonday = () => {
     const today = new Date();
     const day = today.getDay();
@@ -124,7 +124,7 @@ const TimesheetList = ({ consultantId, userId, onLogout, onProfileClick }) => {
     return `${y}-${m}-${d}`;
   };
 
-  {/*Returns "Sunday DD Month YYYY at 9:00pm" — shown in the modal as the submission due date*/}
+  {/*Returns "Sunday DD Month YYYY at 9:00pm" shown in the modal as the submission due date*/}
   const getDueDate = (mondayStr) => {
     if (!mondayStr) return null;
     const monday = new Date(mondayStr + 'T00:00:00');

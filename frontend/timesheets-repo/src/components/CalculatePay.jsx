@@ -20,10 +20,10 @@ import autoTable from "jspdf-autotable";
 
 // backend api url
 const BASE_URL = "http://localhost:8000/api";
-// standard working day is 8 hours, used for hourly rate calc
+// standard working day is 8 hours, used for hourly rate calculation
 const HOURS_PER_DAY = 8;
 
-// helper functions i use for formatting stuff
+// helper functions we use for formatting stuff
 
 // format date like "14 Apr 2026"
 function fmtDate(raw) {
@@ -144,8 +144,7 @@ function buildBreakdown(entries, clientMap) {
   return Object.values(groups);
 }
 
-// ─── Inline styles ───────────────────────────────────────────────────────────
-
+// Inline styles 
 const C = {
   dark: "#003d4f",
   mid: "#006680",
@@ -466,8 +465,7 @@ const styles = {
   },
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
+//  Component 
 const FinanceDashboard = ({ user, onProfileClick }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -493,7 +491,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const [entriesMap, setEntriesMap] = useState({});
   const [loadingEntries, setLoadingEntries] = useState(false);
 
-  // controls for the payslip modal + marking as paid flow
+  // controls for the payslip modal and marking as paid flow
   const [modalOpen, setModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [payDone, setPayDone] = useState(false);
@@ -510,7 +508,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   const [histMonthFilter, setHistMonthFilter] = useState("all");
   const [histSort, setHistSort] = useState("desc"); // desc = newest first
 
-  // first load - grab consultants, timesheets and clients in parallel
+  // first load: grab consultants, timesheets and clients in parallel
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -719,7 +717,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   };
 
   // builds the actual payslip PDF that gets downloaded
-  // uses jsPDF + autoTable for the tables
+  // uses jsPDF and autoTable for the tables
   const downloadPDF = () => {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
@@ -731,7 +729,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     const grey = [120, 120, 120];
     const rowAlt = [245, 250, 251];
 
-    // ── Header bar ──
+    // Header bar
     doc.setFillColor(...teal);
     doc.rect(0, 0, pageW, 30, "F");
 
@@ -744,7 +742,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     doc.setFont("helvetica", "normal");
     doc.text("Payslip", 14, 22);
 
-    // ── Consultant info block ──
+    // Consultant info block
     doc.setTextColor(...dark);
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
@@ -763,7 +761,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
       14, 64
     );
 
-    // ── Divider ──
+    // Divider
     doc.setDrawColor(220, 230, 232);
     doc.setLineWidth(0.4);
     doc.line(14, 67, pageW - 14, 67);
@@ -834,7 +832,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
       });
     });
 
-    // ── Grand total row ──
+    //Grand total row
     doc.setFillColor(...teal);
     doc.roundedRect(14, y, pageW - 28, 12, 2, 2, "F");
     doc.setTextColor(...white);
@@ -845,7 +843,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     doc.text(`${grandOT.toFixed(1)}h`, 110, y + 8, { align: "right" });
     doc.text(fmtGBP(grandTotal), pageW - 20, y + 8, { align: "right" });
 
-    // ── Footer ──
+    //Footer
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 180, 180);
@@ -875,7 +873,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     const breakdown = buildBreakdown(entries, clientMap);
     const r = histRowCalc(ts);
 
-    // ── Header bar ──
+    //Header bar
     doc.setFillColor(...teal);
     doc.rect(0, 0, pageW, 30, "F");
     doc.setTextColor(...white);
@@ -886,7 +884,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     doc.setFont("helvetica", "normal");
     doc.text("Payslip", 14, 22);
 
-    // ── Consultant info ──
+    // Consultant info
     doc.setTextColor(...dark);
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
@@ -903,21 +901,21 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
       14, 64
     );
 
-    // ── Divider ──
+    //  Divider
     doc.setDrawColor(220, 230, 232);
     doc.setLineWidth(0.4);
     doc.line(14, 67, pageW - 14, 67);
 
     let y = 73;
 
-    // ── Week heading ──
+    //Week heading
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...teal);
     doc.text(`Week: ${fmtDate(ts.weekCommencing)} – ${fmtDate(ts.weekEnding)}`, 14, y);
     y += 5;
 
-    // ── Table ──
+    //Table
     autoTable(doc, {
       startY: y,
       margin: { left: 14, right: 14 },
@@ -954,7 +952,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
 
     y = doc.lastAutoTable.finalY + 10;
 
-    // ── Total bar ──
+    //Total bar
     doc.setFillColor(...teal);
     doc.roundedRect(14, y, pageW - 28, 12, 2, 2, "F");
     doc.setTextColor(...white);
@@ -965,12 +963,12 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     doc.text(`${r.otHrs.toFixed(1)}h`, 110, y + 8, { align: "right" });
     doc.text(fmtGBP(r.total), pageW - 20, y + 8, { align: "right" });
 
-    // ── Footer ──
+    // Footer
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 180, 180);
     doc.text(
-      "This payslip was generated by TimeDime. Please retain for your records.",
+      "This payslip has been generated by TimeDime. Please retain for your records.",
       pageW / 2, pageH - 8, { align: "center" }
     );
 
@@ -991,7 +989,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
   return (
     <div style={styles.page}>
 
-      {/* ── Header ── */}
+      {/*Header*/}
       <div
         className="text-white"
         style={{
@@ -1018,7 +1016,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
         </h1>
       </div>
 
-      {/* ── Stat cards ── */}
+      {/* Stat cards */}
       <div style={{ ...styles.statsGrid, gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", padding: isMobile ? "1rem 1rem 0" : styles.statsGrid.padding }}>
         <div style={styles.statCard(C.bright)}>
           <div style={styles.statIcon(`${C.bright}22`)}>
@@ -1049,7 +1047,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
         </div>
       </div>
 
-      {/* ── Filter bar ── */}
+      {/*Filter bar*/}
       <div style={{ ...styles.filterBar, margin: isMobile ? "1rem 1rem 0" : styles.filterBar.margin, padding: isMobile ? "1rem" : styles.filterBar.padding }}>
         <div style={styles.filterGroup}>
           <label style={styles.filterLabel}>
@@ -1092,10 +1090,10 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
         )}
       </div>
 
-      {/* ── Main content ── */}
+      {/*Main content*/}
       <div style={{ ...styles.bodyWrap, padding: isMobile ? "1rem" : styles.bodyWrap.padding }}>
 
-        {/* Incomplete month warning — shown when not every Monday in the month has an approved timesheet */}
+        {/* Incomplete month warning shown when not every Monday in the month has an approved timesheet */}
         {hasIncompleteMonth && chosenConsultant && (
           <div style={styles.warningBanner}>
             <FontAwesomeIcon icon={faTriangleExclamation} style={{ color: C.warning, marginTop: "2px", flexShrink: 0 }} />
@@ -1256,7 +1254,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
               )}
             </div>
 
-            {/* Search + sort controls */}
+            {/* Search and sort filter */}
             {paidSheets.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}` }}>
                 <select
@@ -1361,7 +1359,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
 
       </div>
 
-      {/* ── Payslip Modal ── */}
+      {/* Payslip Modal */}
       <Modal show={modalOpen} onHide={() => setModalOpen(false)} size="lg" centered>
         <Modal.Header closeButton style={{ backgroundColor: C.dark, color: "#fff", borderBottom: `3px solid ${C.bright}` }}>
           <Modal.Title style={{ fontSize: "0.95rem", fontWeight: 700 }}>

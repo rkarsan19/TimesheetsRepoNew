@@ -381,8 +381,7 @@ def rejectTimesheet(request, pk):
     return Response(serializer.data)
 
 
-# ── TIMESHEET ENTRIES ─────────────────────────────────────────
-
+# TIMESHEET ENTRIES 
 # Returns all daily entries for a given timesheet.
 # Used by TimesheetDetail to populate the 7-day hours grid.
 @api_view(['GET'])
@@ -449,7 +448,7 @@ def saveTimesheetEntries(request, pk):
     return Response({'message': 'Entries saved successfully'}, status=status.HTTP_200_OK)
 
 
-# ── CLIENTS ───────────────────────────────────────────────────
+#  CLIENTS
 
 # PUT /api/clients/<id>/rate/  — sets the daily rate for a client
 # Used by the Finance dashboard to configure per-client pay rates.
