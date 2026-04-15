@@ -1079,7 +1079,6 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: "0.82rem", color: C.dark }}>{chosenConsultant.name}</div>
-              <div style={{ fontSize: "0.7rem", color: C.muted }}>{fmtGBP(chosenConsultant.daily_rate || 0)}/day base rate</div>
             </div>
           </div>
         )}
@@ -1093,8 +1092,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
           <div style={styles.warningBanner}>
             <FontAwesomeIcon icon={faTriangleExclamation} style={{ color: C.warning, marginTop: "2px", flexShrink: 0 }} />
             <div>
-              <strong>Missing daily rates</strong> — cannot calculate pay for:{" "}
-              <strong>{badRateSheets.map((ts) => `Week ${fmtDate(ts.weekCommencing)}`).join(", ")}</strong>
+              <strong>No daily rate set</strong> — pay can't be calculated for:{" "}
+              <strong>{badRateSheets.map((ts) => `Week of ${fmtDate(ts.weekCommencing)}`).join(", ")}</strong>. Ask an admin to add a rate.
             </div>
           </div>
         )}
