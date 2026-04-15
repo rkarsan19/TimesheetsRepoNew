@@ -17,11 +17,14 @@ import NotificationBell from "./NotificationBell";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// backend api url
 const BASE_URL = "http://localhost:8000/api";
+// standard working day is 8 hours, used for hourly rate calc
 const HOURS_PER_DAY = 8;
 
-// ─── Utility helpers ────────────────────────────────────────────────────────
+// helper functions i use for formatting stuff
 
+// format date like "14 Apr 2026"
 function fmtDate(raw) {
   if (!raw) return "—";
   return new Date(raw + "T00:00:00").toLocaleDateString("en-GB", {
@@ -31,6 +34,7 @@ function fmtDate(raw) {
   });
 }
 
+// format money with pound sign and 2 decimals
 function fmtGBP(amount) {
   return "£" + parseFloat(amount || 0).toLocaleString("en-GB", {
     minimumFractionDigits: 2,
@@ -38,6 +42,7 @@ function fmtGBP(amount) {
   });
 }
 
+// turn "2026-04" into "April 2026"
 function monthLabel(str) {
   const [y, m] = str.split("-");
   return new Date(y, parseInt(m) - 1).toLocaleDateString("en-GB", {
@@ -46,11 +51,13 @@ function monthLabel(str) {
   });
 }
 
+// gives todays month in "YYYY-MM" format so the month picker defaults to current month
 function currentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// checks if a timesheets week falls inside the selected month
 function isInMonth(ts, monthStr) {
   if (!ts.weekCommencing) return false;
   const [y, m] = monthStr.split("-");
@@ -58,8 +65,13 @@ function isInMonth(ts, monthStr) {
   return d.getFullYear() === parseInt(y) && d.getMonth() + 1 === parseInt(m);
 }
 
-// ─── Pay calculation ─────────────────────────────────────────────────────────
-
+// main pay calculation logic
+// takes one time entry and works out how much the consultant should be paid
+// priority for the daily rate:
+//   1. consultants own base rate (fallback)
+//   2. clients default rate
+//   3. assignments default rate
+//   4. assignments client-specific rate (highest priority)
 function computeEntryPay(entry, clientMap, rateInfo, consultantRate) {
   const stdHrs = parseFloat(entry.hoursWorked || 0);
   const otHrs = parseFloat(entry.overtime_hours || 0);
@@ -67,11 +79,13 @@ function computeEntryPay(entry, clientMap, rateInfo, consultantRate) {
   const byClient = rateInfo?.byClient || {};
   const defaultRate = rateInfo?.default || 0;
 
+  // start from consultants base rate then override if something more specific exists
   let dailyRate = parseFloat(consultantRate || 0);
   if (clientObj && parseFloat(clientObj.daily_rate) > 0) dailyRate = parseFloat(clientObj.daily_rate);
   if (defaultRate > 0) dailyRate = defaultRate;
   if (entry.client && byClient[entry.client] > 0) dailyRate = byClient[entry.client];
 
+  // hourly rate = daily / 8. OT is 1.5x
   const hourlyRate = dailyRate / HOURS_PER_DAY;
   const stdPay = hourlyRate * stdHrs;
   const otPay = hourlyRate * 1.5 * otHrs;
@@ -84,10 +98,12 @@ function computeEntryPay(entry, clientMap, rateInfo, consultantRate) {
     otPay,
     total: stdPay + otPay,
     clientLabel: clientObj?.name || null,
-    missingRate: dailyRate === 0,
+    missingRate: dailyRate === 0, // flag so we can warn the user later
   };
 }
 
+// groups entries by client so the payslip shows one row per client
+// each row has the totals for that client (std hrs, ot hrs, pay etc)
 function buildBreakdown(entries, clientMap, rateInfo, consultantRate) {
   const groups = {};
   for (const entry of entries) {
@@ -97,6 +113,7 @@ function buildBreakdown(entries, clientMap, rateInfo, consultantRate) {
     if (!groups[key]) {
       groups[key] = { label, dailyRate: pay.dailyRate, stdHrs: 0, otHrs: 0, stdPay: 0, otPay: 0, total: 0, missingRate: pay.missingRate };
     }
+    // add everything up per client
     groups[key].stdHrs += pay.stdHrs;
     groups[key].otHrs += pay.otHrs;
     groups[key].stdPay += pay.stdPay;
@@ -431,32 +448,42 @@ const styles = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const FinanceDashboard = ({ user, onProfileClick }) => {
+  // list of all consultants pulled from api
   const [consultants, setConsultants] = useState([]);
+  // client data stored as a map so we can look them up quickly by id
   const [clientMap, setClientMap] = useState({});
+  // every timesheet in the system (approved, paid, submitted etc)
   const [allTimesheets, setAllTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // what the user has currently picked from the filter bar
   const [chosenConsultant, setChosenConsultant] = useState(null);
   const [chosenMonth, setChosenMonth] = useState(currentMonth());
 
+  // entries and rates for the selected consultant/month (keyed by timesheet id)
   const [entriesMap, setEntriesMap] = useState({});
   const [ratesMap, setRatesMap] = useState({});
   const [loadingEntries, setLoadingEntries] = useState(false);
 
+  // controls for the payslip modal + marking as paid flow
   const [modalOpen, setModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [payDone, setPayDone] = useState(false);
 
+  // pay history stuff (shown at the bottom of the page)
   const [payHistory, setPayHistory] = useState([]);
   const [paidSheets, setPaidSheets] = useState([]);
   const [histEntries, setHistEntries] = useState({});
   const [histRates, setHistRates] = useState({});
   const [histLoading, setHistLoading] = useState(false);
-  const [paySnapshot, setPaySnapshot] = useState(null); // frozen copy of sheets/entries/rates at pay time
+  // we snapshot the sheets before marking as paid so the modal still shows data after
+  // (otherwise the timesheets become PAID and get filtered out, giving £0)
+  const [paySnapshot, setPaySnapshot] = useState(null);
+  // filter and sort state for the pay history list
   const [histMonthFilter, setHistMonthFilter] = useState("all");
-  const [histSort, setHistSort] = useState("desc"); // "desc" = newest first, "asc" = oldest first
+  const [histSort, setHistSort] = useState("desc"); // desc = newest first
 
-  // Initial data load
+  // first load - grab consultants, timesheets and clients in parallel
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -468,6 +495,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
         ]);
         setConsultants(cRes.data);
         setAllTimesheets(tRes.data);
+        // turn clients array into a lookup map by id
         const map = {};
         clRes.data.forEach((c) => { map[c.clientId] = c; });
         setClientMap(map);
@@ -481,12 +509,14 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
 
   // Load entries for selected consultant + month
   const fetchEntries = useCallback(async (consultant, month) => {
+    // only care about APPROVED timesheets in the chosen month
     const sheets = allTimesheets.filter(
       (ts) => ts.consultant === consultant.consultantId && ts.status === "APPROVED" && isInMonth(ts, month)
     );
     if (!sheets.length) { setEntriesMap({}); setRatesMap({}); return; }
     setLoadingEntries(true);
     try {
+      // fetch entries and assignments for each timesheet at the same time
       const results = await Promise.all(
         sheets.map((ts) =>
           Promise.all([
@@ -495,14 +525,17 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
           ]).then(([e, a]) => ({ id: ts.timesheetID, entries: e.data, assignments: a.data }))
         )
       );
+      // build two maps keyed by timesheet id
       const eMap = {}, rMap = {};
       results.forEach(({ id, entries, assignments }) => {
         eMap[id] = entries;
         const byClient = {};
         let def = 0;
+        // if only one assignment just use that rate as the default
         if (assignments.length === 1) {
           def = parseFloat(assignments[0].daily_rate) || 0;
         } else if (assignments.length > 1) {
+          // multiple assignments = rate can differ per client
           assignments.forEach((a) => {
             if (a.client && parseFloat(a.daily_rate) > 0) byClient[a.client] = parseFloat(a.daily_rate);
           });
@@ -519,7 +552,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     }
   }, [allTimesheets]);
 
-  // Load pay history for selected consultant
+  // Load pay history for selected consultant (same idea as above but for PAID timesheets)
   const fetchHistory = useCallback(async (consultant) => {
     setHistLoading(true);
     try {
@@ -560,6 +593,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     }
   }, []);
 
+  // when the user picks a new consultant reset everything and refetch
   const onPickConsultant = (id) => {
     const c = consultants.find((c) => c.consultantId === parseInt(id));
     setChosenConsultant(c || null);
@@ -567,10 +601,11 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     setRatesMap({});
     setPayDone(false);
     setPaySnapshot(null);
-    setHistMonthFilter("all");
+    setHistMonthFilter("all"); // reset month filter too
     if (c) { fetchEntries(c, chosenMonth); fetchHistory(c); }
   };
 
+  // same as above but for the month picker
   const onPickMonth = (m) => {
     setChosenMonth(m);
     setEntriesMap({});
@@ -580,11 +615,12 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     if (chosenConsultant) fetchEntries(chosenConsultant, m);
   };
 
-  // Sheets for current view
+  // timesheets that should be shown in the main table (approved, in chosen month)
   const visibleSheets = chosenConsultant
     ? allTimesheets.filter((ts) => ts.consultant === chosenConsultant.consultantId && ts.status === "APPROVED" && isInMonth(ts, chosenMonth))
     : [];
 
+  // calc totals for one timesheet row (std hrs, ot hrs, total pay)
   const rowCalc = (ts) => {
     const entries = entriesMap[ts.timesheetID] || [];
     const rInfo = ratesMap[ts.timesheetID] || {};
@@ -595,12 +631,14 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     }, { stdHrs: 0, otHrs: 0, total: 0, missingRate: false });
   };
 
+  // total for the whole table (all visible sheets added up)
   const grandTotals = visibleSheets.reduce((acc, ts) => {
     const r = rowCalc(ts);
     return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, total: acc.total + r.total, missingRate: acc.missingRate || r.missingRate };
   }, { stdHrs: 0, otHrs: 0, total: 0, missingRate: false });
 
-  // When payDone, use the frozen snapshot so the modal/PDF still has data
+  // after marking as paid the timesheets switch to PAID so visibleSheets becomes empty
+  // so we use a frozen snapshot from the moment payment was done
   const modalSheets = payDone && paySnapshot ? paySnapshot.sheets : visibleSheets;
   const modalEntries = payDone && paySnapshot ? paySnapshot.entries : entriesMap;
   const modalRates = payDone && paySnapshot ? paySnapshot.rates : ratesMap;
@@ -615,6 +653,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     return { stdHrs: acc.stdHrs + r.stdHrs, otHrs: acc.otHrs + r.otHrs, total: acc.total + r.total };
   }, { stdHrs: 0, otHrs: 0, total: 0 });
 
+  // flags any timesheet where we cant figure out a daily rate at all
+  // these get shown in the warning banner so finance team can fix them
   const badRateSheets = visibleSheets.filter((ts) => {
     const ri = ratesMap[ts.timesheetID];
     if (ri && (ri.default > 0 || Object.keys(ri.byClient).length > 0)) return false;
@@ -623,6 +663,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     return !hasClientRate && parseFloat(chosenConsultant?.daily_rate || 0) === 0;
   });
 
+  // only allow generate payslip when theres stuff to pay, not loading, not already done, and no missing rates
   const canPay = visibleSheets.length > 0 && !loadingEntries && !payDone && badRateSheets.length === 0;
 
   const histRowCalc = (ts) => {
@@ -635,20 +676,23 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     }, { stdHrs: 0, otHrs: 0, total: 0 });
   };
 
-  // Stats
+  // numbers shown in the 3 stat cards at the top of the page
   const awaitingCount = allTimesheets.filter((ts) => ts.status === "APPROVED").length;
   const paidThisMonth = allTimesheets.filter((ts) => ts.status === "PAID" && isInMonth(ts, chosenMonth)).length;
 
-  // Actions
+  // called when finance clicks "Mark as Paid" in the modal
+  // creates payslip records and flips timesheets to PAID
   const handleGeneratePayslip = async () => {
     setProcessing(true);
-    // snapshot before API wipes APPROVED status
+    // take a copy of the current sheets/entries/rates before the api changes anything
+    // we need this for the modal to still show the right totals after
     setPaySnapshot({
       sheets: [...visibleSheets],
       entries: { ...entriesMap },
       rates: { ...ratesMap },
     });
     try {
+      // first create a payslip for each timesheet
       await Promise.all(
         visibleSheets.map((ts) =>
           axios.post(`${BASE_URL}/payslips/calculate/`, {
@@ -657,7 +701,9 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
           })
         )
       );
+      // then mark them all as paid
       await Promise.all(visibleSheets.map((ts) => axios.put(`${BASE_URL}/timesheets/${ts.timesheetID}/mark-paid/`)));
+      // refresh timesheets so the stats update
       const tRes = await axios.get(`${BASE_URL}/timesheets/`);
       setAllTimesheets(tRes.data);
       setPayDone(true);
@@ -669,6 +715,8 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     }
   };
 
+  // builds the actual payslip PDF that gets downloaded
+  // uses jsPDF + autoTable for the tables
   const downloadPDF = () => {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
@@ -809,6 +857,7 @@ const FinanceDashboard = ({ user, onProfileClick }) => {
     doc.save(`payslip_${chosenConsultant.name.replace(/\s+/g, "_")}_${chosenMonth}.pdf`);
   };
 
+  // same thing but for the pay history PDFs (per-week download from the history section)
   const downloadHistPDF = (ts) => {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
