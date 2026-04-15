@@ -7,33 +7,33 @@ import greenbg from '../assets/login-bg.svg';
 import { faClock, faArrowLeft, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
 
 function UserProfile({user, setuser, onBack, onLogout}) {
-    const [formData, setFormData] = useState({});
-    const [Message, setMessage] = useState("");
-    const [isEditing, setisEditing] = useState(false);
-    const [isError, setisError] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [formData, setFormData] = useState({}); //usestate: for editing form data
+    const [Message, setMessage] = useState(""); //usestate: confirmation message 
+    const [isEditing, setisEditing] = useState(false); //usestate: when user is editing profile
+    const [isError, setisError] = useState(false); //usestate: check if Message is an error message
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768); //usestate: check if window width smaller than 768 
 
-    const userName = user?.name;
-    const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase();
+    const userName = user?.name; 
+    const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase(); //split user name into intials
 
-    const [overtimeLimit, setOvertimeLimit] = useState('');
-    const [overtimeLimitMsg, setOvertimeLimitMsg] = useState('');
-    const [savingLimit, setSavingLimit] = useState(false);
+    const [overtimeLimit, setOvertimeLimit] = useState(''); //usestate: set overtime limit for consultant if user is line manager
+    const [overtimeLimitMsg, setOvertimeLimitMsg] = useState(''); //usestate: confrimation message 
+    const [savingLimit, setSavingLimit] = useState(false); //usestate: saves overtime limit
 
-    const storeduserid = JSON.parse(localStorage.getItem('user'));
-    const UserID = storeduserid?.userID;
-    const isLineManager = (user?.role || storeduserid?.role) === 'LINE_MANAGER';
+    const storeduserid = JSON.parse(localStorage.getItem('user')); 
+    const UserID = storeduserid?.userID; //user id
+    const isLineManager = (user?.role || storeduserid?.role) === 'LINE_MANAGER'; //to check if user is line manager
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize); //to handle the resizing of the window
     }, []);
 
     useEffect(() => {
-        const fetchUserdata = async () => {
+        const fetchUserdata = async () => { //fetches data for user
             try {
-              const response = await axios.get(`http://localhost:8000/api/users/${UserID}/`);
+              const response = await axios.get(`http://localhost:8000/api/users/${UserID}/`); 
               setFormData(response.data);
               setuser(response.data);
             } catch(error) {
@@ -44,18 +44,18 @@ function UserProfile({user, setuser, onBack, onLogout}) {
         };
         fetchUserdata();
 
-        if (isLineManager) {
+        if (isLineManager) { //check if user is the line manager to set overtime limit
             axios.get('http://localhost:8000/api/settings/overtime-limit/')
                 .then(res => setOvertimeLimit(String(res.data.overtime_limit)))
                 .catch(() => {});
         }
     }, [UserID]);
 
-    const handleChange = (e) => {
+    const handleChange = (e) => { 
         setFormData({...formData, [e.target.name]: e.target.value});
     }
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => { //handles updating data on profile
         e.preventDefault();
         try {
             const res = await axios.put(`http://localhost:8000/api/users/${UserID}/update/`, formData);
@@ -74,7 +74,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
         }
     }
 
-    const handleSaveOvertimeLimit = async () => {
+    const handleSaveOvertimeLimit = async () => { //save overtime limit
         const val = parseFloat(overtimeLimit);
         if (isNaN(val) || val < 0) {
             setOvertimeLimitMsg('Please enter a valid number of hours (0 or more).');
@@ -96,7 +96,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
     <div style={{
       width: '100vw',
       minHeight: '100vh',
-      backgroundImage: `url(${timedimebg})`,
+      backgroundImage: `url(${timedimebg})`, 
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
@@ -110,7 +110,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: isMobile ? '14px 16px' : '18px 32px',
+        padding: isMobile ? '14px 16px' : '18px 32px', //if mobile change padding
         background: 'rgba(0,0,0,0.18)',
         backdropFilter: 'blur(6px)',
         position: 'sticky',
@@ -137,7 +137,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
         >
           <FontAwesomeIcon icon={faArrowLeft} />
-          {!isMobile && 'Back'}
+          {!isMobile && 'Back'} {/* if not mobile keep "back" inside button */}
         </button>
 
         {/* Logo */}
@@ -216,7 +216,7 @@ function UserProfile({user, setuser, onBack, onLogout}) {
         )}
 
         {/* PROFILE CARD */}
-        {!isEditing ? (
+        {!isEditing ? ( //if not editing profile 
           <div style={{
             backgroundColor: 'white',
             borderRadius: '20px',
@@ -266,10 +266,10 @@ function UserProfile({user, setuser, onBack, onLogout}) {
                 {formData.role}
               </p>
               <br />
-              <button style={styles.btn} onClick={() => setisEditing(true)}>Edit Profile</button>
+              <button style={styles.btn} onClick={() => setisEditing(true)}>Edit Profile</button> 
             </div>
           </div>
-        ) : (
+        ) : ( //if editing profile
           <form onSubmit={handleSubmit} style={{
             backgroundColor: 'white',
             borderRadius: '20px',
@@ -331,6 +331,8 @@ function UserProfile({user, setuser, onBack, onLogout}) {
     </div>
   );
 }
+
+//styles for page
 
 const styles = {
   label: {
