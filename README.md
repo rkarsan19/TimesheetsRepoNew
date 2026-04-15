@@ -73,6 +73,12 @@ Runs at `http://localhost:3000`
 
 ### Environment Variables
 
+You need your own Supabase project. The `.env` file is not included in this repo for security reasons, so you have to create it yourself.
+
+1. Go to [supabase.com](https://supabase.com) and create a free project
+2. Go to **Project Settings > Database** to get your DB credentials
+3. Go to **Project Settings > API** to get your Supabase URL and keys
+
 Create a `.env` file inside `backend/` with:
 
 ```
@@ -93,6 +99,62 @@ EMAIL_PORT=587
 EMAIL_HOST_USER=your_email@gmail.com
 EMAIL_HOST_PASSWORD=your_app_password
 ```
+
+### Database Security (Row-Level Security)
+
+After running `python manage.py migrate`, you need to enable Row-Level Security on all tables. Go to your Supabase project, open the **SQL Editor**, and run this:
+
+```sql
+-- Enable RLS on all tables
+ALTER TABLE api_user ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_consultant ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_linemanager ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_administrator ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_timesheet ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_timesheetentry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_client ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_assignment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_payslip ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_notification ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_systemsettings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_passwordresettoken ENABLE ROW LEVEL SECURITY;
+ALTER TABLE django_migrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE django_content_type ENABLE ROW LEVEL SECURITY;
+ALTER TABLE django_admin_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE django_session ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_permission ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_group ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_group_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_user ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_user_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_user_user_permissions ENABLE ROW LEVEL SECURITY;
+
+-- Allow only the Django backend (service role) to access all tables
+CREATE POLICY "service_role_only" ON api_user TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_consultant TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_linemanager TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_administrator TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_timesheet TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_timesheetentry TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_client TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_assignment TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_payslip TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_notification TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_systemsettings TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON api_passwordresettoken TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON django_migrations TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON django_content_type TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON django_admin_log TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON django_session TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON auth_permission TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON auth_group TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON auth_group_permissions TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON auth_user TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON auth_user_groups TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_only" ON auth_user_user_permissions TO service_role USING (true) WITH CHECK (true);
+```
+
+This does not affect how the app works. Django uses the service role key which bypasses RLS, so everything still works normally. RLS just blocks anyone trying to access your database directly without going through Django.
 
 ---
 
