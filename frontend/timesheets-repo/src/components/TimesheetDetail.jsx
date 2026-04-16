@@ -74,6 +74,7 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
   }, [timesheetId]);
 
   const handleDayChange = (index, field, value) => {
+    setSubmitError('');
     setDayRows(prev => {
       const updated = prev.map((row, i) => i === index ? { ...row, [field]: value } : row);
       const row = updated[index];
@@ -131,6 +132,16 @@ const TimesheetDetail = ({ timesheetId, onBack }) => {
       setSubmitError('No Hours Logged! Please enter hours for at least one day before submitting!');
       return;
     }
+
+    const missingClient = dayRows.filter(
+      row => (parseFloat(row.hoursWorked) > 0 || parseFloat(row.overtime_hours) > 0) && !row.client_id
+    );
+    if (missingClient.length > 0) {
+      const days = missingClient.map(r => r.dayName).join(', ');
+      setSubmitError(`Please select a client for the following day(s) before submitting: ${days}.`);
+      return;
+    }
+
     await handleSave();
     try {
       await axios.put(`${API_BASE}/timesheets/${timesheetId}/submit/`);
